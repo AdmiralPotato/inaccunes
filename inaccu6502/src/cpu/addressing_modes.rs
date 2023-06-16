@@ -1,24 +1,24 @@
 use super::{Cpu, Memory};
 
 /// An addressing mode that we can get a value from.
-pub trait ReadAddressingMode {
-    fn new(cpu: &mut Cpu, memory: &mut Memory) -> Self;
-    fn get_value(&self, cpu: &Cpu, memory: &mut Memory) -> u8;
+pub trait ReadAddressingMode<M: Memory> {
+    fn new(cpu: &mut Cpu, memory: &mut M) -> Self;
+    fn get_value(&self, cpu: &Cpu, memory: &mut M) -> u8;
 }
 /// An addressing mode that we can (also) put a value into.
-pub trait WriteAddressingMode: ReadAddressingMode {
-    fn put_value(&self, cpu: &mut Cpu, memory: &mut Memory, value: u8);
+pub trait WriteAddressingMode<M: Memory>: ReadAddressingMode<M> {
+    fn put_value(&self, cpu: &mut Cpu, memory: &mut M, value: u8);
 }
-pub trait AddressibleAddressingMode: ReadAddressingMode {
+pub trait AddressibleAddressingMode {
     fn get_address(&self) -> u16;
 }
 
 pub struct Immediate(u8);
-impl ReadAddressingMode for Immediate {
-    fn new(cpu: &mut Cpu, memory: &mut Memory) -> Self {
+impl<M: Memory> ReadAddressingMode<M> for Immediate {
+    fn new(cpu: &mut Cpu, memory: &mut M) -> Self {
         return Self(cpu.read_pc_and_post_inc(memory));
     }
-    fn get_value(&self, _cpu: &Cpu, _memory: &mut Memory) -> u8 {
+    fn get_value(&self, _cpu: &Cpu, _memory: &mut M) -> u8 {
         let Self(value) = self;
         return *value;
     }
@@ -38,18 +38,18 @@ macro_rules! addressible_mode {
         */
         pub struct $name(u16);
         //pub struct ZeroPage { address: u16 }
-        impl ReadAddressingMode for $name {
-            fn new($cpu: &mut Cpu, $memory: &mut Memory) -> Self {
+        impl<M: Memory> ReadAddressingMode<M> for $name {
+            fn new($cpu: &mut Cpu, $memory: &mut M) -> Self {
                 $code
             }
-            fn get_value(&self, _cpu: &Cpu, memory: &mut Memory) -> u8 {
+            fn get_value(&self, _cpu: &Cpu, memory: &mut M) -> u8 {
                 // destructuring assignment of 0th positional value into `address`
                 let Self(source) = self;
                 memory.read_byte(*source)
             }
         }
-        impl WriteAddressingMode for $name {
-            fn put_value(&self, _cpu: &mut Cpu, memory: &mut Memory, value: u8) {
+        impl<M: Memory> WriteAddressingMode<M> for $name {
+            fn put_value(&self, _cpu: &mut Cpu, memory: &mut M, value: u8) {
                 let Self(destination) = self;
                 memory.write_byte(*destination, value);
             }
@@ -100,16 +100,16 @@ addressible_mode!(
 macro_rules! register_mode {
     ($name:ident, $field:ident) => {
         pub struct $name;
-        impl ReadAddressingMode for $name {
-            fn new(_cpu: &mut Cpu, _memory: &mut Memory) -> Self {
+        impl<M: Memory> ReadAddressingMode<M> for $name {
+            fn new(_cpu: &mut Cpu, _memory: &mut M) -> Self {
                 return Self;
             }
-            fn get_value(&self, cpu: &Cpu, _memory: &mut Memory) -> u8 {
+            fn get_value(&self, cpu: &Cpu, _memory: &mut M) -> u8 {
                 cpu.$field
             }
         }
-        impl WriteAddressingMode for $name {
-            fn put_value(&self, cpu: &mut Cpu, _memory: &mut Memory, value: u8) {
+        impl<M: Memory> WriteAddressingMode<M> for $name {
+            fn put_value(&self, cpu: &mut Cpu, _memory: &mut M, value: u8) {
                 cpu.$field = value;
             }
         }

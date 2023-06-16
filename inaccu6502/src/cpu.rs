@@ -85,19 +85,19 @@ impl Cpu {
         };
     }
 
-    pub fn reset(&mut self, memory: &Memory) {
+    pub fn reset<M: Memory>(&mut self, memory: &M) {
         let a = memory.read_byte(RESET_VECTOR);
         let b = memory.read_byte(RESET_VECTOR + 1);
         self.pc = u16::from_le_bytes([a, b]);
     }
 
-    fn read_pc_and_post_inc(&mut self, memory: &Memory) -> u8 {
+    fn read_pc_and_post_inc<M: Memory>(&mut self, memory: &M) -> u8 {
         let value = memory.read_byte(self.pc);
         self.pc += 1;
         return value;
     }
 
-    fn push_byte(&mut self, memory: &mut Memory, byte: u8) {
+    fn push_byte<M: Memory>(&mut self, memory: &mut M, byte: u8) {
         // 00xx = zero page
         // 01xx = stack (STACK_BASE)
         // xxxx = some other address
@@ -106,44 +106,44 @@ impl Cpu {
         self.s = self.s.wrapping_sub(1);
     }
 
-    fn pop_byte(&mut self, memory: &mut Memory) -> u8 {
+    fn pop_byte<M: Memory>(&mut self, memory: &mut M) -> u8 {
         self.s = self.s.wrapping_add(1);
         let destination = (self.s) as u16 + STACK_BASE;
         let result = memory.read_byte(destination);
         return result;
     }
 
-    fn store_zero<AM: WriteAddressingMode>(&mut self, memory: &mut Memory) {
+    fn store_zero<AM: WriteAddressingMode<M>, M: Memory>(&mut self, memory: &mut M) {
         let am = AM::new(self, memory);
         am.put_value(self, memory, 0);
     }
 
-    fn dec<AM: WriteAddressingMode>(&mut self, memory: &mut Memory) {
+    fn dec<AM: WriteAddressingMode<M>, M: Memory>(&mut self, memory: &mut M) {
         let am = AM::new(self, memory);
         let value = am.get_value(self, memory).wrapping_sub(1);
         am.put_value(self, memory, value);
         self.assign_status_nz_for_result(value);
     }
 
-    fn load<Target: WriteAddressingMode, AM: ReadAddressingMode>(&mut self, memory: &mut Memory) {
+    fn load<Target: WriteAddressingMode<M>, AM: ReadAddressingMode<M>, M: Memory>(&mut self, memory: &mut M) {
         let am = AM::new(self, memory);
         let value = am.get_value(self, memory);
         Target::new(self, memory).put_value(self, memory, value);
         self.assign_status_nz_for_result(value);
     }
-    fn store<Source: ReadAddressingMode, AM: WriteAddressingMode>(&mut self, memory: &mut Memory) {
+    fn store<Source: ReadAddressingMode<M>, AM: WriteAddressingMode<M>, M: Memory>(&mut self, memory: &mut M) {
         let value = Source::new(self, memory).get_value(self, memory);
         let am = AM::new(self, memory);
         am.put_value(self, memory, value);
     }
-    fn or_accumulator<AM: ReadAddressingMode>(&mut self, memory: &mut Memory) {
+    fn or_accumulator<AM: ReadAddressingMode<M>, M: Memory>(&mut self, memory: &mut M) {
         let am = AM::new(self, memory);
         self.a |= am.get_value(self, memory);
         self.assign_status_nz_for_result(self.a);
     }
-    fn add_accumulator<AM: ReadAddressingMode>(
+    fn add_accumulator<AM: ReadAddressingMode<M>, M: Memory>(
         &mut self,
-        memory: &mut Memory,
+        memory: &mut M,
         use_carry: bool,
         discard_result: bool,
         subtraction: bool,
@@ -197,7 +197,7 @@ impl Cpu {
         self.assign_status_nz_for_result(result as u8)
     }
 
-    fn handle_branch_operation(&mut self, memory: &mut Memory, should_branch: bool) {
+    fn handle_branch_operation<M: Memory>(&mut self, memory: &mut M, should_branch: bool) {
         // casting it to a signed 8-bit integer first means that, when
         // we go to cast it to a u16 below, Rust will "sign extend" it
         let offset = self.read_pc_and_post_inc(memory) as i8;
@@ -214,14 +214,14 @@ impl Cpu {
         }
     }
 
-    pub fn step(&mut self, memory: &mut Memory) {
+    pub fn step<M: Memory>(&mut self, memory: &mut M) {
         //eprintln!("PC is {:X}", self.pc);
         let opcode = self.read_pc_and_post_inc(memory);
         //eprintln!("Opcode is {:02X}", opcode);
         match opcode {
             // ORA imm
             // OR memory with Accumulator (immediate)
-            0x09 => self.or_accumulator::<Immediate>(memory),
+            0x09 => self.or_accumulator::<Immediate, _>(memory),
             // CLC
             // CLear Carry
             0x18 => self.p = clear_bit(self.p, STATUS_C),
@@ -241,7 +241,7 @@ impl Cpu {
             0x30 => self.handle_branch_operation(memory, is_bit_set(self.p, STATUS_N)),
             // DEC A (or) DEA
             // DEcrement Accumulator
-            0x3A => self.dec::<RegisterA>(memory),
+            0x3A => self.dec::<RegisterA, _>(memory),
             // PHA
             // PusH A (onto the stack)
             0x48 => {
@@ -265,7 +265,7 @@ impl Cpu {
             }
             // STZ zp
             // STore Zero (zero page)
-            0x64 => self.store_zero::<ZeroPage>(memory),
+            0x64 => self.store_zero::<ZeroPage, _>(memory),
             // PLA
             // PuLl A (from the stack)
             0x68 => {
@@ -274,7 +274,7 @@ impl Cpu {
             }
             // ADC #imm
             // ADd with Carry (immediate)
-            0x69 => self.add_accumulator::<Immediate>(memory, true, false, false),
+            0x69 => self.add_accumulator::<Immediate, _>(memory, true, false, false),
             // PLY
             // PuLl Y (from the stack)
             0x7A => {
@@ -288,13 +288,13 @@ impl Cpu {
             }
             // STA zp
             // STore A (zero page)
-            0x85 => self.store::<RegisterA, ZeroPage>(memory),
+            0x85 => self.store::<RegisterA, ZeroPage, _>(memory),
             // STA abs
             // STore Accumulator (absolute)
-            0x8D => self.store::<RegisterA, Absolute>(memory),
+            0x8D => self.store::<RegisterA, Absolute, _>(memory),
             // STX abs
             // STore X (absolute)
-            0x8E => self.store::<RegisterX, Absolute>(memory),
+            0x8E => self.store::<RegisterX, Absolute, _>(memory),
             // BCC off
             // Branch if Carry is Clear (C = 0)
             0x90 => self.handle_branch_operation(memory, !is_bit_set(self.p, STATUS_C)),
@@ -305,22 +305,22 @@ impl Cpu {
             }
             // STZ abs
             // STore Zero (absolute)
-            0x9C => self.store_zero::<Absolute>(memory),
+            0x9C => self.store_zero::<Absolute, _>(memory),
             // LDY #imm
             // Load Y (immediate)
-            0xA0 => self.load::<RegisterY, Immediate>(memory),
+            0xA0 => self.load::<RegisterY, Immediate, _>(memory),
             // LDX #imm
             // Load X (immediate)
-            0xA2 => self.load::<RegisterY, Immediate>(memory),
+            0xA2 => self.load::<RegisterY, Immediate, _>(memory),
             // LDA zp
             // LoaD Accumulator (zero page)
-            0xA5 => self.load::<RegisterA, ZeroPage>(memory),
+            0xA5 => self.load::<RegisterA, ZeroPage, _>(memory),
             // LDA #imm
             // LoaD Accumulator (immediate)
-            0xA9 => self.load::<RegisterA, Immediate>(memory),
+            0xA9 => self.load::<RegisterA, Immediate, _>(memory),
             // LDA abs
             // LoaD Accumulator (absolute)
-            0xAD => self.load::<RegisterA, Absolute>(memory),
+            0xAD => self.load::<RegisterA, Absolute, _>(memory),
             // BCS offset
             // Branch if Carry flag is Set
             0xB0 => {
@@ -328,7 +328,7 @@ impl Cpu {
             }
             // LDA (zp),Y
             // LoaD Accumulator (zero page, indirect, Y-indexed)
-            0xB1 => self.load::<RegisterA, ZeroPageIndirectYIndexed>(memory),
+            0xB1 => self.load::<RegisterA, ZeroPageIndirectYIndexed, _>(memory),
             // INY
             // INcrement Y
             0xC8 => {
@@ -338,10 +338,10 @@ impl Cpu {
             }
             // DEC zp
             // DECrement (zero page)
-            0xC6 => self.dec::<ZeroPage>(memory),
+            0xC6 => self.dec::<ZeroPage, _>(memory),
             // CMP imm
             // CoMPare (immediate)
-            0xC9 => self.add_accumulator::<Immediate>(memory, false, true, true),
+            0xC9 => self.add_accumulator::<Immediate, _>(memory, false, true, true),
             // WAI
             // WAit for Interrupt
             0xCB => {
