@@ -48,7 +48,10 @@ impl Memory for Devices {
         } else if address < 0x4018 {
             self.apu[(address - 0x4000) as usize] = data;
         } else {
-            panic!("Do not write to cartridge!! {:04X}", address);
+            warn!(
+                "Attempted write to cartridge: {:04X} ← {:02X}",
+                address, data
+            );
         }
     }
 }

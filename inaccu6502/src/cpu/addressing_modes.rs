@@ -74,6 +74,24 @@ addressible_mode!(
     }
 );
 addressible_mode!(
+    name: ZeroPageXIndexed,
+    cpu_var_name: cpu,
+    memory_var_name: memory,
+    new_function_body: {
+        let address = (cpu.read_pc_and_post_inc(memory).wrapping_add(cpu.x)) as u16;
+        return Self(address);
+    }
+);
+addressible_mode!(
+    name: ZeroPageYIndexed,
+    cpu_var_name: cpu,
+    memory_var_name: memory,
+    new_function_body: {
+        let address = (cpu.read_pc_and_post_inc(memory).wrapping_add(cpu.y)) as u16;
+        return Self(address);
+    }
+);
+addressible_mode!(
     name: ZeroPageXIndexedIndirect,
     cpu_var_name: cpu,
     memory_var_name: memory,
@@ -108,6 +126,28 @@ addressible_mode!(
         let b = cpu.read_pc_and_post_inc(memory);
         let address = u16::from_le_bytes([a, b]);
         return Self(address);
+    }
+);
+addressible_mode!(
+    name: AbsoluteXIndexed,
+    cpu_var_name: cpu,
+    memory_var_name: memory,
+    new_function_body: {
+        let a = cpu.read_pc_and_post_inc(memory);
+        let b = cpu.read_pc_and_post_inc(memory);
+        let address = u16::from_le_bytes([a, b]);
+        return Self(address.wrapping_add(cpu.x as u16));
+    }
+);
+addressible_mode!(
+    name: AbsoluteYIndexed,
+    cpu_var_name: cpu,
+    memory_var_name: memory,
+    new_function_body: {
+        let a = cpu.read_pc_and_post_inc(memory);
+        let b = cpu.read_pc_and_post_inc(memory);
+        let address = u16::from_le_bytes([a, b]);
+        return Self(address.wrapping_add(cpu.y as u16));
     }
 );
 
