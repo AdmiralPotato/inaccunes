@@ -74,6 +74,20 @@ addressible_mode!(
     }
 );
 addressible_mode!(
+    name: ZeroPageXIndexedIndirect,
+    cpu_var_name: cpu,
+    memory_var_name: memory,
+    new_function_body: {
+        let address_of_address = (cpu.read_pc_and_post_inc(memory) + cpu.x) as u16;
+        let address_low = memory.read_byte(address_of_address as u16);
+        // note: wrap BEFORE conversion to u16. 0x00FF wraps to 0x0000 when
+        // doing X indexing.
+        let address_high = memory.read_byte(address_of_address.wrapping_add(1) as u16);
+        let address = u16::from_le_bytes([address_low, address_high]);
+        return Self(address);
+    }
+);
+addressible_mode!(
     name: ZeroPageIndirectYIndexed,
     cpu_var_name: cpu,
     memory_var_name: memory,

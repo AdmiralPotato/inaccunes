@@ -3,6 +3,10 @@ use inaccu6502::{Cpu, Memory};
 
 pub struct System {
     cpu: Cpu,
+    devices: Devices,
+}
+
+struct Devices {
     ram: [u8; 2048],
     /// Picture Processing Unit
     /// TODO: PPU registers
@@ -22,7 +26,7 @@ pub struct System {
 // 001: PPU
 //    x xxxx xxxx xAAA
 
-impl Memory for System {
+impl Memory for Devices {
     fn read_byte(&self, address: u16) -> u8 {
         if address < 0x2000 {
             return self.ram[(address & 0x7FF) as usize];
@@ -31,7 +35,9 @@ impl Memory for System {
         } else if address < 0x4018 {
             return self.apu[(address - 0x4000) as usize];
         } else {
-            todo!("cartridge space read {:04X}", address);
+            // TODO: don't the hack
+            let address = (address as usize) % self.cartridge.prg_data.len();
+            return self.cartridge.prg_data[address];
         }
     }
     fn write_byte(&mut self, address: u16, data: u8) {
@@ -49,17 +55,40 @@ impl Memory for System {
 
 impl System {
     pub fn new(cartridge: Cartridge) -> System {
-        return System {
+        let mut result = System {
             cpu: Cpu::new(),
-            ram: [0; 2048],
-            ppu: [0; 8],
-            apu: [0; 24],
-            cartridge,
+            devices: Devices {
+                ram: [0; 2048],
+                ppu: [0; 8],
+                apu: [0; 24],
+                cartridge,
+            },
         };
+        result.reset();
+        result
+    }
+    pub fn reset(&mut self) {
+        self.cpu.reset(&mut self.devices);
     }
     pub fn render(&mut self) -> [u32; NES_PIXEL_COUNT] {
+        const CPU_STEPS_PER_SCANLINE: usize = 113;
+        const CPU_STEPS_PER_VBLANK: usize = 2273;
         let mut result = [0xDEECAF; NES_PIXEL_COUNT];
-        result[(NES_PIXEL_COUNT / 2) + (NES_WIDTH / 2)] = 0xff0000;
+        // Pretend to be in V-blank.
+        // TODO: turn vblank flag on or something
+        for _ in 0..CPU_STEPS_PER_VBLANK {
+            self.cpu.step(&mut self.devices);
+        }
+        // TODO: turn vblank flag off
+        for scanline in result.chunks_mut(NES_WIDTH) {
+            // TODO: render a scanline
+            for (i, pixel) in scanline.iter_mut().enumerate() {
+                *pixel = (i as u32) * 69;
+            }
+            for _ in 0..CPU_STEPS_PER_SCANLINE {
+                self.cpu.step(&mut self.devices);
+            }
+        }
         return result;
     }
 }

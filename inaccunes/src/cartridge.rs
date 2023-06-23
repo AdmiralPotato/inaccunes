@@ -1,9 +1,9 @@
 use log::*;
 use std::{fs::File, io::Read};
 pub struct Cartridge {
-    mirroring_type: MirroringType,
-    prg_data: Vec<u8>,
-    chr_data: Vec<u8>,
+    pub mirroring_type: MirroringType,
+    pub prg_data: Vec<u8>,
+    pub chr_data: Vec<u8>,
 }
 
 const PRG_CHUNK_SIZE: usize = 16 * 1024; // 16 kibibytes per PRG chunk
@@ -15,7 +15,7 @@ const HEADER_FLAG_HAS_TRAINER: u8 = 0x04;
 const HEADER_FLAG_FOUR_SCREEN_VRAM: u8 = 0x08;
 
 #[derive(Debug)]
-enum MirroringType {
+pub enum MirroringType {
     Horizontal,
     Vertical,
     FourScreen,

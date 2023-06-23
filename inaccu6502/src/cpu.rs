@@ -125,13 +125,19 @@ impl Cpu {
         self.assign_status_nz_for_result(value);
     }
 
-    fn load<Target: WriteAddressingMode<M>, AM: ReadAddressingMode<M>, M: Memory>(&mut self, memory: &mut M) {
+    fn load<Target: WriteAddressingMode<M>, AM: ReadAddressingMode<M>, M: Memory>(
+        &mut self,
+        memory: &mut M,
+    ) {
         let am = AM::new(self, memory);
         let value = am.get_value(self, memory);
         Target::new(self, memory).put_value(self, memory, value);
         self.assign_status_nz_for_result(value);
     }
-    fn store<Source: ReadAddressingMode<M>, AM: WriteAddressingMode<M>, M: Memory>(&mut self, memory: &mut M) {
+    fn store<Source: ReadAddressingMode<M>, AM: WriteAddressingMode<M>, M: Memory>(
+        &mut self,
+        memory: &mut M,
+    ) {
         let value = Source::new(self, memory).get_value(self, memory);
         let am = AM::new(self, memory);
         am.put_value(self, memory, value);
@@ -219,9 +225,32 @@ impl Cpu {
         let opcode = self.read_pc_and_post_inc(memory);
         //eprintln!("Opcode is {:02X}", opcode);
         match opcode {
-            // ORA imm
-            // OR memory with Accumulator (immediate)
+            // BRK xx
+            // BReaK the computer
+            0x00 => todo!("BRK"),
+            // ORA (zp,X)
+            // OR with Accumulator (zero page X-indexed indirect)
+            0x01 => self.or_accumulator::<ZeroPageXIndexedIndirect, _>(memory),
+            // ORA zp
+            // OR with Accumulator (zero page)
+            0x05 => self.or_accumulator::<ZeroPage, _>(memory),
+            // ASL zp
+            // Arithmetic Shift Left (zero page)
+            0x06 => todo!("ASL zpg"),
+            // PHP
+            // PusH P (status) register
+            0x08 => todo!("PHP"),
+            // ORA #imm
+            // OR with Accumulator (immediate)
             0x09 => self.or_accumulator::<Immediate, _>(memory),
+            // ASL A
+            // Arithmetic Shift Left (accumulator)
+            0x0A => todo!("ASL A"),
+            0x0D => self.or_accumulator::<Absolute, _>(memory),
+            // ASL abs
+            // Arithmetic Shift Left (absolute)
+            0x0E => todo!("ASL abs"),
+            0x10 => self.handle_branch_operation(memory, is_bit_set(self.p, STATUS_N)),
             // CLC
             // CLear Carry
             0x18 => self.p = clear_bit(self.p, STATUS_C),
