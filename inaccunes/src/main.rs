@@ -1,3 +1,5 @@
+use std::sync::Arc;
+
 use log::*;
 use sdl2::{pixels::PixelFormatEnum, render::TextureAccess};
 
@@ -5,6 +7,8 @@ mod cartridge;
 use cartridge::Cartridge;
 mod system;
 use system::System;
+mod font;
+use font::*;
 
 const NES_WIDTH: usize = 256;
 const NES_HEIGHT: usize = 240;
@@ -22,6 +26,10 @@ fn main() {
     }
     let cartridge = Cartridge::new(&our_arguments[1]);
     let mut system = System::new(cartridge);
+
+    let monaco =
+        load_monaco().expect("Could not load Monaco, the best [bitmapped] monospace font evar");
+    let monaco = Arc::new(monaco);
 
     let sdl = sdl2::init().expect("Unable to initialize SDL (like, at all)");
     let video = sdl.video().expect("Unable to initialize SDL video");
@@ -46,6 +54,7 @@ fn main() {
             NES_HEIGHT as u32,
         )
         .expect("Could not create a native size texture.");
+    let monaco_for_main = FontInstance::new(monaco, &texture_creator);
 
     'running: loop {
         let pixels = system.render();
@@ -61,6 +70,7 @@ fn main() {
         canvas
             .copy(&texture, None, None)
             .expect("could not copy native texture to window texture");
+        monaco_for_main.render_to_canvas(&mut canvas, 69, 69, &system.show_cpu_state());
         canvas.present();
         for event in event_pump.poll_iter() {
             use sdl2::{event::Event, keyboard::Keycode};

@@ -49,7 +49,7 @@ impl Memory for Devices {
             self.apu[(address - 0x4000) as usize] = data;
         } else {
             warn!(
-                "Attempted write to cartridge: {:04X} ← {:02X}",
+                "Attempted write to cartridge: {:04X} <-- {:02X}",
                 address, data
             );
         }
@@ -78,20 +78,23 @@ impl System {
         const CPU_STEPS_PER_VBLANK: usize = 2273;
         let mut result = [0xDEECAF; NES_PIXEL_COUNT];
         // Pretend to be in V-blank.
-        // TODO: turn vblank flag on or something
+        self.devices.ppu[2] |= 0x80; // vblank flag ON
         for _ in 0..CPU_STEPS_PER_VBLANK {
             self.cpu.step(&mut self.devices);
         }
-        // TODO: turn vblank flag off
-        for scanline in result.chunks_mut(NES_WIDTH) {
+        self.devices.ppu[2] &= !0x80; // vblank flag OFF
+        for (y, scanline) in result.chunks_mut(NES_WIDTH).enumerate() {
             // TODO: render a scanline
-            for (i, pixel) in scanline.iter_mut().enumerate() {
-                *pixel = (i as u32) * 69;
+            for (x, pixel) in scanline.iter_mut().enumerate() {
+                *pixel = (x as u32) * 69 + (y as u32) * 420;
             }
             for _ in 0..CPU_STEPS_PER_SCANLINE {
                 self.cpu.step(&mut self.devices);
             }
         }
         return result;
+    }
+    pub fn show_cpu_state(&self) -> String {
+        format!("CPU: {:?}", self.cpu)
     }
 }

@@ -9,4 +9,6 @@ edition = "2021"
 env_logger = "0.10.0"
 log = "0.4.19"
 inaccu6502 = {path = "../inaccu6502"}
-sdl2 = {version = "0.35.2", features = ["bundled"]}
+sdl2 = {version = "0.35.2", features = ["bundled", "unsafe_textures"]}
+png = "0.17.9"
+anyhow = "1.0.71"

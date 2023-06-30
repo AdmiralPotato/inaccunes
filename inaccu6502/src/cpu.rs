@@ -1,6 +1,9 @@
 use super::Memory;
 
-use std::ops::BitAnd;
+use std::{
+    fmt::{Debug, Formatter, Result as FmtResult},
+    ops::BitAnd,
+};
 
 mod addressing_modes;
 use addressing_modes::*;
@@ -23,6 +26,54 @@ pub struct Cpu {
     p: u8,
     /// The program counter.
     pc: u16,
+}
+impl Debug for Cpu {
+    fn fmt(&self, fmt: &mut Formatter<'_>) -> FmtResult {
+        write!(
+            fmt,
+            "PC:{pc:04X} A:{a:02X} X:{x:02X} Y:{y:02X} S:01{s:02X} P:{n}{v}1{b}{d}{i}{z}{c}",
+            pc = self.pc,
+            a = self.a,
+            x = self.x,
+            y = self.y,
+            s = self.s,
+            n = if is_bit_set(self.p, STATUS_N) {
+                "N"
+            } else {
+                "n"
+            },
+            v = if is_bit_set(self.p, STATUS_V) {
+                "V"
+            } else {
+                "v"
+            },
+            b = if is_bit_set(self.p, STATUS_B) {
+                "B"
+            } else {
+                "b"
+            },
+            d = if is_bit_set(self.p, STATUS_D) {
+                "D"
+            } else {
+                "d"
+            },
+            i = if is_bit_set(self.p, STATUS_I) {
+                "I"
+            } else {
+                "i"
+            },
+            z = if is_bit_set(self.p, STATUS_Z) {
+                "Z"
+            } else {
+                "z"
+            },
+            c = if is_bit_set(self.p, STATUS_C) {
+                "C"
+            } else {
+                "c"
+            },
+        )
+    }
 }
 
 // Bits of the P register.
