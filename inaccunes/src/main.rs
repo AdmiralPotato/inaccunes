@@ -71,6 +71,22 @@ fn main() {
             .copy(&texture, None, None)
             .expect("could not copy native texture to window texture");
         monaco_for_main.render_to_canvas(&mut canvas, 69, 69, &system.show_cpu_state());
+        monaco_for_main.render_to_canvas(
+            &mut canvas,
+            69,
+            99,
+            "The tiger\n\
+            He destroyed his cage\n\
+            Yes\n\
+            YES\n\
+            The tiger is out",
+        );
+        monaco_for_main.render_to_canvas(
+            &mut canvas,
+            69,
+            256,
+            "These tabs are...\n\tTOTALLY TABULAR!!!\n1\tTOTALLY TABULAR!!!\n22\tTOTALLY TABULAR!!!\n333\tTOTALLY TABULAR!!!",
+        );
         canvas.present();
         for event in event_pump.poll_iter() {
             use sdl2::{event::Event, keyboard::Keycode};

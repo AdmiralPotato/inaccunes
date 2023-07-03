@@ -1,4 +1,4 @@
-use std::{io::Read, sync::Arc};
+use std::{io::Read, ops::RangeInclusive, sync::Arc};
 
 use anyhow::{anyhow, Context};
 use log::*;
@@ -8,6 +8,8 @@ use sdl2::{
     render::{TextureCreator, WindowCanvas},
     video::WindowContext,
 };
+
+const TAB_WIDTH: i32 = 8;
 
 /// The raw, plain-ole-data properties of a font.
 pub struct FontData {
@@ -74,6 +76,9 @@ impl FontData {
             num_rows: num_rows as u8,
         });
     }
+    pub fn get_glyph_range(&self) -> RangeInclusive<u8> {
+        self.first_glyph..=self.first_glyph + (self.num_glyphs - 1)
+    }
 }
 
 /// An instance of a font, ready to render to a particular window.
@@ -117,19 +122,39 @@ impl FontInstance {
         let mut current_x = x;
         let mut current_y = y;
         for char in text.chars().into_iter() {
-            let char_index: u8 = char.try_into().expect("UNICODE! NONICODE!");
-            let glyph_index = char_index - self.font_data.first_glyph;
-            let glyph_x: i32 = ((glyph_index % glyphs_per_row) as i32) * glyph_width as i32;
-            let glyph_y: i32 = ((glyph_index / glyphs_per_row) as i32) * glyph_height as i32;
-            let source_rect = Rect::new(glyph_x, glyph_y, glyph_width, glyph_height);
-            let dest_rect = Rect::new(current_x, current_y, glyph_width, glyph_height);
-            canvas.set_draw_color(Color::RGB(127, 0, 0));
-            canvas.fill_rect(dest_rect).expect("Could not fill rect");
-            // canvas.set_draw_color(Color::RGB(255, 255, 255));
-            canvas
-                .copy(&self.texture, source_rect, dest_rect)
-                .expect("Could not render text to canvas");
-            current_x += glyph_width as i32;
+            match char {
+                '\n' => {
+                    current_x = x;
+                    current_y += glyph_height as i32;
+                }
+                '\t' => {
+                    let tab_width = glyph_width as i32 * TAB_WIDTH;
+                    current_x += tab_width - (current_x - x) % tab_width;
+                }
+                ' ' => {
+                    current_x += glyph_width as i32;
+                }
+                char => {
+                    let char_index: u8 = char.try_into().expect("UNICODE! NONICODE!");
+                    let glyph_index = if !self.font_data.get_glyph_range().contains(&char_index) {
+                        b'?' - self.font_data.first_glyph
+                    } else {
+                        char_index - self.font_data.first_glyph
+                    };
+                    let glyph_x: i32 = ((glyph_index % glyphs_per_row) as i32) * glyph_width as i32;
+                    let glyph_y: i32 =
+                        ((glyph_index / glyphs_per_row) as i32) * glyph_height as i32;
+                    let source_rect = Rect::new(glyph_x, glyph_y, glyph_width, glyph_height);
+                    let dest_rect = Rect::new(current_x, current_y, glyph_width, glyph_height);
+                    // canvas.set_draw_color(Color::RGB(127, 0, 0));
+                    // canvas.fill_rect(dest_rect).expect("Could not fill rect");
+                    // // canvas.set_draw_color(Color::RGB(255, 255, 255));
+                    canvas
+                        .copy(&self.texture, source_rect, dest_rect)
+                        .expect("Could not render text to canvas");
+                    current_x += glyph_width as i32;
+                }
+            }
         }
     }
 }
