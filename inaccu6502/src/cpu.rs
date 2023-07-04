@@ -164,11 +164,6 @@ impl Cpu {
         return result;
     }
 
-    fn store_zero<AM: WriteAddressingMode<M>, M: Memory>(&mut self, memory: &mut M) {
-        let am = AM::new(self, memory);
-        am.put_value(self, memory, 0);
-    }
-
     fn decrement<AM: WriteAddressingMode<M>, M: Memory>(&mut self, memory: &mut M) {
         let am = AM::new(self, memory);
         let value = am.get_value(self, memory).wrapping_sub(1);
