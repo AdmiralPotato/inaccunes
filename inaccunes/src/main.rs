@@ -123,11 +123,36 @@ fn main() {
         for event in event_pump.poll_iter() {
             use sdl2::{event::Event, keyboard::Keycode};
             match event {
-                Event::Quit { .. }
-                | Event::KeyDown {
-                    keycode: Some(Keycode::Escape),
+                Event::Quit { .. } => break 'running,
+                Event::KeyDown {
+                    keycode: Some(keycode),
                     ..
-                } => break 'running,
+                } => match keycode {
+                    Keycode::Escape => break 'running,
+                    Keycode::Up => system.get_controllers_mut()[0].button_up = true,
+                    Keycode::Down => system.get_controllers_mut()[0].button_down = true,
+                    Keycode::Left => system.get_controllers_mut()[0].button_left = true,
+                    Keycode::Right => system.get_controllers_mut()[0].button_right = true,
+                    Keycode::Space => system.get_controllers_mut()[0].button_a = true,
+                    Keycode::LShift => system.get_controllers_mut()[0].button_b = true,
+                    Keycode::Return => system.get_controllers_mut()[0].button_start = true,
+                    Keycode::Tab => system.get_controllers_mut()[0].button_select = true,
+                    _ => info!("Key I don't care about: {keycode}"),
+                },
+                Event::KeyUp {
+                    keycode: Some(keycode),
+                    ..
+                } => match keycode {
+                    Keycode::Up => system.get_controllers_mut()[0].button_up = false,
+                    Keycode::Down => system.get_controllers_mut()[0].button_down = false,
+                    Keycode::Left => system.get_controllers_mut()[0].button_left = false,
+                    Keycode::Right => system.get_controllers_mut()[0].button_right = false,
+                    Keycode::Space => system.get_controllers_mut()[0].button_a = false,
+                    Keycode::LShift => system.get_controllers_mut()[0].button_b = false,
+                    Keycode::Return => system.get_controllers_mut()[0].button_start = false,
+                    Keycode::Tab => system.get_controllers_mut()[0].button_select = false,
+                    _ => (),
+                },
                 _ => {}
             }
         }

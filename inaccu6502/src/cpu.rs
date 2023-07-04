@@ -136,13 +136,13 @@ impl Cpu {
         };
     }
 
-    pub fn reset<M: Memory>(&mut self, memory: &M) {
+    pub fn reset<M: Memory>(&mut self, memory: &mut M) {
         let a = memory.read_byte(RESET_VECTOR);
         let b = memory.read_byte(RESET_VECTOR + 1);
         self.pc = u16::from_le_bytes([a, b]);
     }
 
-    fn read_pc_and_post_inc<M: Memory>(&mut self, memory: &M) -> u8 {
+    fn read_pc_and_post_inc<M: Memory>(&mut self, memory: &mut M) -> u8 {
         let value = memory.read_byte(self.pc);
         self.pc += 1;
         return value;
