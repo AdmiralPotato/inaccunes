@@ -9,5 +9,6 @@
     "spellright.documentTypes": [
         "markdown",
         "latex"
-    ]
+    ],
+    "rust-analyzer.showUnlinkedFileNotification": false
 }

@@ -1,4 +1,8 @@
-use std::{io::Read, ops::RangeInclusive, sync::Arc};
+use std::{
+    io::Read,
+    ops::{Deref, RangeInclusive},
+    sync::Arc,
+};
 
 use anyhow::{anyhow, Context};
 use log::*;
@@ -76,8 +80,16 @@ impl FontData {
             num_rows: num_rows as u8,
         });
     }
-    pub fn get_glyph_range(&self) -> RangeInclusive<u8> {
+    pub fn get_valid_glyph_range(&self) -> RangeInclusive<u8> {
         self.first_glyph..=self.first_glyph + (self.num_glyphs - 1)
+    }
+
+    pub fn get_glyph_height(&self) -> u32 {
+        self.glyph_height
+    }
+
+    pub fn get_glyph_width(&self) -> u32 {
+        self.glyph_width
     }
 }
 
@@ -136,11 +148,12 @@ impl FontInstance {
                 }
                 char => {
                     let char_index: u8 = char.try_into().expect("UNICODE! NONICODE!");
-                    let glyph_index = if !self.font_data.get_glyph_range().contains(&char_index) {
-                        b'?' - self.font_data.first_glyph
-                    } else {
-                        char_index - self.font_data.first_glyph
-                    };
+                    let glyph_index =
+                        if !self.font_data.get_valid_glyph_range().contains(&char_index) {
+                            b'?' - self.font_data.first_glyph
+                        } else {
+                            char_index - self.font_data.first_glyph
+                        };
                     let glyph_x: i32 = ((glyph_index % glyphs_per_row) as i32) * glyph_width as i32;
                     let glyph_y: i32 =
                         ((glyph_index / glyphs_per_row) as i32) * glyph_height as i32;
@@ -156,6 +169,13 @@ impl FontInstance {
                 }
             }
         }
+    }
+}
+
+impl Deref for FontInstance {
+    type Target = FontData;
+    fn deref(&self) -> &FontData {
+        self.font_data.deref()
     }
 }
 

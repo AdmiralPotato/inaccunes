@@ -7,7 +7,7 @@ pub struct System {
 }
 
 struct Devices {
-    ram: [u8; 2048],
+    ram: [u8; WORK_RAM_SIZE],
     /// Picture Processing Unit
     /// TODO: PPU registers
     ppu: [u8; 8],
@@ -96,5 +96,10 @@ impl System {
     }
     pub fn show_cpu_state(&self) -> String {
         format!("CPU: {:?}", self.cpu)
+    }
+    pub fn get_work_memory_byte(&self, address: u16) -> u8 {
+        let address = address as usize;
+        assert!(address < WORK_RAM_SIZE, "Invalid RAM address {address:04X}");
+        return self.devices.ram[address];
     }
 }
