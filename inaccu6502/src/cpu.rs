@@ -79,29 +79,29 @@ impl Debug for Cpu {
 // Bits of the P register.
 /// **C**arry flag: whether the last addition carried past 8 bits
 #[allow(unused)]
-const STATUS_C: u8 = 0b_0000_0001;
+pub const STATUS_C: u8 = 0b_0000_0001;
 /// **Z**ero flag: whether the last operation resulted in 0x00
 #[allow(unused)]
-const STATUS_Z: u8 = 0b_0000_0010;
+pub const STATUS_Z: u8 = 0b_0000_0010;
 /// **I**nterrupt mask flag: whether interrupts are *disabled* (masked)
 #[allow(unused)]
-const STATUS_I: u8 = 0b_0000_0100;
+pub const STATUS_I: u8 = 0b_0000_0100;
 /// **D**ecimal flag: whether we do addition in a way that makes Solra cry
 #[allow(unused)]
-const STATUS_D: u8 = 0b_0000_1000;
+pub const STATUS_D: u8 = 0b_0000_1000;
 /// **B**reak flag: whether the interrupt was actually a break
 #[allow(unused)]
-const STATUS_B: u8 = 0b_0001_0000;
+pub const STATUS_B: u8 = 0b_0001_0000;
 /// **1** flag: literally hardwired to a one
 #[allow(unused)]
-const STATUS_1: u8 = 0b_0010_0000;
+pub const STATUS_1: u8 = 0b_0010_0000;
 /// o**V**erflow flag: whether the last integer operation did a signed overflow
 /// 🤔
 #[allow(unused)]
-const STATUS_V: u8 = 0b_0100_0000;
+pub const STATUS_V: u8 = 0b_0100_0000;
 /// **N**egative flag: whether the last operation resulted in a negative value
 #[allow(unused)]
-const STATUS_N: u8 = 0b_1000_0000;
+pub const STATUS_N: u8 = 0b_1000_0000;
 
 fn clear_bit(input: u8, bit: u8) -> u8 {
     input & !bit
@@ -379,7 +379,7 @@ impl Cpu {
             0x0E => self.arithmetic_shift_left::<Absolute, _>(memory),
             // BPL off
             // Branch if PLus (N bit is clear)
-            0x10 => self.handle_branch_operation(memory, is_bit_set(self.p, STATUS_N)),
+            0x10 => self.handle_branch_operation(memory, !is_bit_set(self.p, STATUS_N)),
             // ORA (zp),Y
             // OR with Accumulator (zero page indirect Y-indexed)
             0x11 => self.or_accumulator::<ZeroPageIndirectYIndexed, _>(memory),
@@ -426,7 +426,7 @@ impl Cpu {
             0x26 => self.rotate_left::<ZeroPage, _>(memory),
             // PLP
             // PuLl P (status) register (from stack)
-            0x28 => self.p = self.pop_byte(memory),
+            0x28 => self.p = self.pop_byte(memory) | STATUS_1 | STATUS_B,
             // AND #imm
             // AND with accumulator (immediate)
             0x29 => self.and_accumulator::<Immediate, _>(memory),
@@ -623,7 +623,7 @@ impl Cpu {
             0x88 => self.decrement::<RegisterY, _>(memory),
             // TXA
             // Transfer X to Accumulator
-            0x8A => self.a = self.x,
+            0x8A => self.a = self.assign_status_nz_for_result(self.x),
             // STY abs
             // STore Y (absolute)
             0x8C => self.store::<RegisterY, Absolute, _>(memory),
@@ -650,13 +650,13 @@ impl Cpu {
             0x96 => self.store::<RegisterX, ZeroPageYIndexed, _>(memory),
             // TYA
             // Transfer Y to Accumulator
-            0x98 => self.a = self.y,
+            0x98 => self.a = self.assign_status_nz_for_result(self.y),
             // STA abs,Y
             // STore Accumulator (absolute Y-indexed)
             0x99 => self.store::<RegisterA, AbsoluteYIndexed, _>(memory),
             // TXS
             // Transfer X to Stack pointer
-            0x9A => self.s = self.x,
+            0x9A => self.s = self.x, // DOES NOT set flags!
             // STA abs,X
             // STore Accumulator (absolute X-indexed)
             0x9D => self.store::<RegisterA, AbsoluteXIndexed, _>(memory),
@@ -668,7 +668,7 @@ impl Cpu {
             0xA1 => self.load::<RegisterA, ZeroPageXIndexedIndirect, _>(memory),
             // LDX #imm
             // Load X (immediate)
-            0xA2 => self.load::<RegisterY, Immediate, _>(memory),
+            0xA2 => self.load::<RegisterX, Immediate, _>(memory),
             // LDY zp
             // LoaD Y (zero page)
             0xA4 => self.load::<RegisterY, ZeroPage, _>(memory),
@@ -680,13 +680,13 @@ impl Cpu {
             0xA6 => self.load::<RegisterX, ZeroPage, _>(memory),
             // TAY
             // Transfer Accumulator to Y
-            0xA8 => self.y = self.a,
+            0xA8 => self.y = self.assign_status_nz_for_result(self.a),
             // LDA #imm
             // LoaD Accumulator (immediate)
             0xA9 => self.load::<RegisterA, Immediate, _>(memory),
             // TAX
             // Transfer Accumulator to X
-            0xAA => self.x = self.a,
+            0xAA => self.x = self.assign_status_nz_for_result(self.a),
             // LDY abs
             // LoaD Y (absolute)
             0xAC => self.load::<RegisterY, Absolute, _>(memory),
@@ -719,7 +719,7 @@ impl Cpu {
             0xB9 => self.load::<RegisterA, AbsoluteYIndexed, _>(memory),
             // TSX
             // Transfer Stack pointer to X
-            0xBA => self.x = self.s,
+            0xBA => self.x = self.assign_status_nz_for_result(self.s),
             // LDY abs,X
             // LoaD Y (absolute X-indexed)
             0xBC => self.load::<RegisterY, AbsoluteXIndexed, _>(memory),
@@ -769,8 +769,8 @@ impl Cpu {
             // DECrement (absolute)
             0xCE => self.decrement::<Absolute, _>(memory),
             // BNE off
-            // Branch if Not Equal (Z is set)
-            0xD0 => self.handle_branch_operation(memory, is_bit_set(self.p, STATUS_Z)),
+            // Branch if Not Equal (Z is clear)
+            0xD0 => self.handle_branch_operation(memory, !is_bit_set(self.p, STATUS_Z)),
             // CMP (zp),Y
             // CoMPare accumulator (zero page indirect Y-indexed)
             0xD1 => self.perform_alu_operation::<RegisterA, ZeroPageIndirectYIndexed, _>(
@@ -873,5 +873,56 @@ impl Cpu {
         //   Some(x) => x,
         //   None => panic!("something else!"),
         // };
+    }
+    // Ways to inspect the state of the CPU, for debugging and visualization
+    // purposes.
+    pub fn get_pc(&self) -> u16 {
+        self.pc
+    }
+    pub fn get_a(&self) -> u8 {
+        self.a
+    }
+    pub fn get_x(&self) -> u8 {
+        self.x
+    }
+    pub fn get_y(&self) -> u8 {
+        self.y
+    }
+    pub fn get_s(&self) -> u8 {
+        self.s
+    }
+    pub fn get_p(&self) -> u8 {
+        self.p
+    }
+    // The real 6502 has this feature. They regret adding it. I don't. I think
+    // it's rad!
+    pub fn set_overflow(&mut self) {
+        self.p |= STATUS_V
+    }
+    // Real 6502s don't have these capabilities, so we'll feature gate them.
+    #[cfg(feature = "override-registers")]
+    pub fn set_pc(&mut self, nu: u16) {
+        self.pc = nu
+    }
+    #[cfg(feature = "override-registers")]
+    pub fn set_a(&mut self, nu: u8) {
+        self.a = nu
+    }
+    #[cfg(feature = "override-registers")]
+    pub fn set_x(&mut self, nu: u8) {
+        self.x = nu
+    }
+    #[cfg(feature = "override-registers")]
+    pub fn set_y(&mut self, nu: u8) {
+        self.y = nu
+    }
+    #[cfg(feature = "override-registers")]
+    pub fn set_s(&mut self, nu: u8) {
+        self.s = nu
+    }
+    #[cfg(feature = "override-registers")]
+    pub fn set_p(&mut self, nu: u8) {
+        // Especially dangerous since this lets you clear the 1 bit!
+        self.p = nu
     }
 }
