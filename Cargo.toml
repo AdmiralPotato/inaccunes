@@ -3,4 +3,5 @@
 members = [
     "inaccunes",
     "inaccu6502",
+    "inaccu6502-test",
 ]
