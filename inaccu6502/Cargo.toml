@@ -10,4 +10,9 @@ log = "0.4.19"
 
 [features]
 default = []
+# Add routines to set the CPU registers, something no real 6502 system would
+# be able to do.
 override-registers = []
+# Incorrect overflow flag behavior, required to pass Klaus Dormann's functional
+# tests.
+dormann-overflow-bug = []

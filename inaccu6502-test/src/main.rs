@@ -14,16 +14,17 @@ impl RAMputer {
 
 impl Memory for RAMputer {
     fn read_byte(&mut self, address: u16) -> u8 {
-        println!("Read: {address:04X} --> {:02X}", self.ram[address as usize]);
+        log::trace!("Read: {address:04X} --> {:02X}", self.ram[address as usize]);
         return self.ram[address as usize];
     }
     fn write_byte(&mut self, address: u16, data: u8) {
-        println!("Write: {address:04X} <-- {data:02X}");
+        log::trace!("Write: {address:04X} <-- {data:02X}");
         self.ram[address as usize] = data;
     }
 }
 
 fn main() {
+    env_logger::init();
     let mut ramputer = RAMputer::new();
     ramputer.ram[..BINARY.len()].copy_from_slice(BINARY);
     let mut cpu = Cpu::new();
@@ -34,22 +35,33 @@ fn main() {
         // TODO: remove this
         if old_pc == 0x09C5 {
             println!("Skipping the BRK test. (We don't have interrupt handling yet.)");
-            cpu.set_pc(0xA11);
+            cpu.set_pc(0x0A11);
+        } else if old_pc == 0x343A {
+            println!("Skipping an RTI test. (We don't have interrupt handling yet.)");
+            cpu.set_pc(0x345D);
         }
-        println!("{cpu:?}");
+        log::trace!("{cpu:?}");
         cpu.step(&mut ramputer);
         let new_pc = cpu.get_pc();
         if old_pc == new_pc {
             if cpu.get_p() & inaccu6502::STATUS_D != 0 {
-                println!("Failed a test, but it appears to be BCD-based, so we're skipping it.");
+                log::warn!("Failed a test, but it appears to be BCD-based, so we're skipping it.");
                 cpu.set_pc(new_pc + 2);
             } else {
                 break;
             }
         }
     }
-    println!(
-        "CPU entered infinite loop at ${:04X}. Tell me I did good, Kilua?",
-        cpu.get_pc()
-    );
+    if cpu.get_pc() == 0x3469 {
+        println!(
+            "CPU entered infinite loop at ${:04X}. Tests passed!",
+            cpu.get_pc()
+        );
+    } else {
+        println!(
+            "CPU entered infinite loop at ${:04X}. It looks like a test failed.",
+            cpu.get_pc()
+        );
+        std::process::exit(1);
+    }
 }

@@ -96,7 +96,7 @@ addressible_mode!(
     cpu_var_name: cpu,
     memory_var_name: memory,
     new_function_body: {
-        let address_of_address = (cpu.read_pc_and_post_inc(memory) + cpu.x) as u16;
+        let address_of_address = (cpu.read_pc_and_post_inc(memory).wrapping_add(cpu.x)) as u16;
         let address_low = memory.read_byte(address_of_address as u16);
         // note: wrap BEFORE conversion to u16. 0x00FF wraps to 0x0000 when
         // doing X indexing.

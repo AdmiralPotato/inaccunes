@@ -2,3 +2,7 @@
 /.vscode/launch.json
 .idea
 *.iml
+# Don't include these in the repo. They can be found at:
+# <https://github.com/Klaus2m5/6502_65C02_functional_tests/>
+inaccu6502-test/src/6502_functional_test.bin
+inaccu6502-test/src/6502_functional_test.lst

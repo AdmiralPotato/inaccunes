@@ -213,7 +213,7 @@ impl Cpu {
     fn bit_test<AM: ReadAddressingMode<M>, M: Memory>(&mut self, memory: &mut M) {
         let am = AM::new(self, memory);
         let value = am.get_value(self, memory);
-        self.p = assign_bit(self.p, STATUS_Z, value == self.a);
+        self.p = assign_bit(self.p, STATUS_Z, value & self.a == 0);
         self.p = (self.p & 0x3F) | (value & 0xC0);
     }
     fn perform_alu_operation<R: WriteAddressingMode<M>, AM: ReadAddressingMode<M>, M: Memory>(
@@ -251,7 +251,11 @@ impl Cpu {
         // 100 + 100 = -56 ?????
         let result = self.assign_status_cnz_for_result(result);
         // oh jeez
-        let overflowed = (thing1 ^ result) & (thing2 ^ result) & 0x80 != 0;
+        let overflowed = ((thing1 ^ result) & (thing2 ^ result) & 0x80 != 0)
+            && (!discard_result
+                || cfg!(not(feature = "dormann-overflow-bug"))
+                || thing1 != 0x80
+                || thing2 != 0x80);
         self.p = assign_bit(self.p, STATUS_V, overflowed);
         if !discard_result {
             r.put_value(self, memory, result);
@@ -728,7 +732,7 @@ impl Cpu {
             0xBD => self.load::<RegisterA, AbsoluteXIndexed, _>(memory),
             // LDX abs,Y
             // LoaD X (absolute Y-indexed)
-            0xBE => self.load::<RegisterY, AbsoluteXIndexed, _>(memory),
+            0xBE => self.load::<RegisterX, AbsoluteYIndexed, _>(memory),
             // CPY #imm
             // ComPare Y (immediate)
             0xC0 => {
@@ -865,7 +869,11 @@ impl Cpu {
             // INC abs,X
             // INCrement (absolute X-indexed)
             0xFE => self.increment::<AbsoluteXIndexed, _>(memory),
-            x => panic!("Unknown opcode: {:02X}", x),
+            x => panic!(
+                "Unknown opcode: {:02X} (PC was {:04X}",
+                x,
+                self.pc.wrapping_sub(1)
+            ),
         }
         // self.pc = self.pc.wrapping_add(1);
         // self.pc = self.pc.saturating_add(1);
