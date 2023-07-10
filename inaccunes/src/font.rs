@@ -6,12 +6,7 @@ use std::{
 
 use anyhow::{anyhow, Context};
 use log::*;
-use sdl2::{
-    pixels::Color,
-    rect::Rect,
-    render::{TextureCreator, WindowCanvas},
-    video::WindowContext,
-};
+use sdl2::{rect::Rect, render::TextureCreator, video::WindowContext};
 
 const TAB_WIDTH: i32 = 8;
 

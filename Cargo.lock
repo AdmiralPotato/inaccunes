@@ -132,6 +132,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "inaccu6502-test"
+version = "0.1.0"
+dependencies = [
+ "env_logger",
+ "inaccu6502",
+ "log",
+]
+
+[[package]]
 name = "inaccunes"
 version = "0.1.0"
 dependencies = [

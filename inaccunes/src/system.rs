@@ -1,4 +1,7 @@
+use std::fmt::{Debug, Formatter, Result as FmtResult};
+
 use super::*;
+
 use inaccu6502::{Cpu, Memory};
 
 #[derive(Default)]
@@ -13,6 +16,23 @@ pub struct Controller {
     pub button_right: bool,
     latch_state: bool,
     captured_byte: u8,
+}
+
+impl Debug for Controller {
+    fn fmt(&self, f: &mut Formatter<'_>) -> FmtResult {
+        write!(
+            f,
+            "{a}{b}{e}{s}{u}{d}{l}{r}",
+            a = if self.button_a { 'A' } else { 'a' },
+            b = if self.button_b { 'B' } else { 'b' },
+            e = if self.button_select { 'E' } else { 'e' },
+            s = if self.button_start { 'S' } else { 's' },
+            u = if self.button_up { 'U' } else { 'u' },
+            d = if self.button_down { 'D' } else { 'd' },
+            l = if self.button_left { 'L' } else { 'l' },
+            r = if self.button_right { 'R' } else { 'r' },
+        )
+    }
 }
 
 const BUTTON_A: u8 = /*     */ 0b0000_0001;

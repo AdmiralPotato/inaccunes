@@ -64,20 +64,10 @@ fn main() {
         .expect("Could not create a native size texture.");
     let monaco_for_tv = FontInstance::new(monaco.clone(), &tv_texture_creator);
     // Memory window
-    let mem_window = video
-        .window(
-            "memory",
-            VISIBLE_MEMORY_COLUMNS * (monaco.get_glyph_width() + 1),
-            VISIBLE_MEMORY_ROWS * (monaco.get_glyph_height() + 2),
-        )
-        .build()
-        .expect("Couldn't make an SDL window?!!");
-    let mut mem_canvas = mem_window.into_canvas().build().unwrap();
-    mem_canvas.set_draw_color(sdl2::pixels::Color::RGB(0, 255, 255));
-    mem_canvas.clear();
-    mem_canvas.present();
-    let monaco_for_mem = FontInstance::new(monaco.clone(), &mem_canvas.texture_creator());
-
+    let mut debug_windows: Vec<Box<dyn DebugWindowThing>> = vec![
+        debug_windows::memory::DebugMemoryWindow::new(&video, monaco.clone()),
+        debug_windows::devices::DebugDevicesWindow::new(&video, monaco.clone()),
+    ];
     'running: loop {
         ///////////////////////////////////////////////////////////////////////
         // Draw the TV
@@ -96,27 +86,13 @@ fn main() {
             .copy(&tv_texture, None, None)
             .expect("could not copy native texture to window texture");
         monaco_for_tv.render_to_canvas(&mut tv_canvas, 69, 69, &system.show_cpu_state());
-        monaco_for_tv.render_to_canvas(
-            &mut tv_canvas,
-            69,
-            99,
-            "The tiger\n\
-            He destroyed his cage\n\
-            Yes\n\
-            YES\n\
-            The tiger is out",
-        );
-        monaco_for_tv.render_to_canvas(
-            &mut tv_canvas,
-            69,
-            256,
-            "These tabs are...\n\tTOTALLY TABULAR!!!\n1\tTOTALLY TABULAR!!!\n22\tTOTALLY TABULAR!!!\n333\tTOTALLY TABULAR!!!",
-        );
         tv_canvas.present();
         ///////////////////////////////////////////////////////////////////////
         // Draw debug windows
         ///////////////////////////////////////////////////////////////////////
-        debug_windows::memory::draw(&mut mem_canvas, &monaco_for_mem, &system);
+        for debug_window in debug_windows.iter_mut() {
+            debug_window.draw(&system);
+        }
         ///////////////////////////////////////////////////////////////////////
         // All done drawing, do user input
         ///////////////////////////////////////////////////////////////////////
