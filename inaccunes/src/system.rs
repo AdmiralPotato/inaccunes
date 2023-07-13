@@ -99,7 +99,7 @@ pub struct System {
     devices: Devices,
 }
 
-struct Devices {
+pub struct Devices {
     ram: [u8; WORK_RAM_SIZE],
     /// Picture Processing Unit
     /// TODO: PPU registers
@@ -185,6 +185,12 @@ impl Memory for Devices {
     }
 }
 
+impl Devices {
+    pub fn get_ppu(&self) -> &[u8; 8] {
+        return &self.ppu;
+    }
+}
+
 impl System {
     pub fn new(cartridge: Cartridge) -> System {
         let mut result = System {
@@ -241,5 +247,8 @@ impl System {
     }
     pub fn get_controllers_mut(&mut self) -> &mut [Controller] {
         return &mut self.devices.controllers;
+    }
+    pub fn get_devices(&self) -> &Devices {
+        return &self.devices;
     }
 }
