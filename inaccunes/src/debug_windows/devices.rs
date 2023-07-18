@@ -26,6 +26,7 @@ impl DebugWindowThing for DebugDevicesWindow {
         let devices = system.get_devices();
         let DebugWindow { canvas, font, .. } = &mut self.window;
         let controllers = system.get_controllers();
+        let ppu = devices.get_ppu();
         canvas.set_draw_color(OVERALL_BACKGROUND);
         canvas.clear();
         let y = 0;
@@ -43,7 +44,7 @@ impl DebugWindowThing for DebugDevicesWindow {
             &format!("Controllers: {:?}", controllers),
         );
         let y = y + 2;
-        let data = devices.get_ppu()[0];
+        let data = ppu.register_control;
         font.render_to_canvas(
             canvas,
             LEFT_MARGIN,
@@ -66,7 +67,7 @@ impl DebugWindowThing for DebugDevicesWindow {
             ),
         );
         let y = y + 4;
-        let data = devices.get_ppu()[1];
+        let data = ppu.register_mask;
         font.render_to_canvas(
             canvas,
             LEFT_MARGIN,
@@ -107,13 +108,30 @@ impl DebugWindowThing for DebugDevicesWindow {
             ),
         );
         let y = y + 2;
-        let data = devices.get_ppu()[3];
         font.render_to_canvas(
             canvas,
             LEFT_MARGIN,
             TOP_MARGIN + y * font.get_glyph_height() as i32,
             &format!(
-                "OAM ADDRESS = ${data:02X}",
+                "OAM ADDRESS = ${oam:02X}\t\tPPU ADDRESS = ${ppudata:04X}",
+                oam = ppu.register_oam_address,
+                ppudata = ppu.register_ppudata_address,
+            ),
+        );
+        let y = y + 2;
+
+        let shift_x = ppu.register_control & 1;
+        let shift_y = (ppu.register_control & 2) >> 1;
+        font.render_to_canvas(
+            canvas,
+            LEFT_MARGIN,
+            TOP_MARGIN + y * font.get_glyph_height() as i32,
+            &format!(
+                "x = ${x:04X}/{x_extra}\t\ty = ${y:04X}/{y_extra}",
+                x = ppu.register_scroll_x,
+                y = ppu.register_scroll_y,
+                x_extra = ppu.register_scroll_x as u16 + (256 * shift_x as u16),
+                y_extra = ppu.register_scroll_y as u16 + (240 * shift_y as u16),
             ),
         );
         let y = y + 2;

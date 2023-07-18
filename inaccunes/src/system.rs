@@ -2,7 +2,9 @@ use std::fmt::{Debug, Formatter, Result as FmtResult};
 
 use super::*;
 
+mod ppu;
 use inaccu6502::{Cpu, Memory};
+use ppu::*;
 
 #[derive(Default)]
 pub struct Controller {
@@ -103,12 +105,11 @@ pub struct Devices {
     ram: [u8; WORK_RAM_SIZE],
     /// Picture Processing Unit
     /// TODO: PPU registers
-    ppu: [u8; 8],
+    ppu: PPU,
     /// Audio Processing Unit
     /// TODO: APU and IO registers
     apu: [u8; 24],
     cartridge: Cartridge,
-    vblank_status_flag: bool,
     pub controllers: [Controller; 2],
 }
 
@@ -125,28 +126,7 @@ impl Memory for Devices {
         if address < 0x2000 {
             self.ram[(address & 0x7FF) as usize]
         } else if address < 0x4000 {
-            match address {
-                0x2002 => {
-                    let mut result = 0;
-                    // Sprite Overflow flag. The real hardware is buggy as
-                    // hell. For now, we won't try to implement it.
-                    if false {
-                        result |= 0x20;
-                    }
-                    // Sprite 0 Hit flag. Not implemented YET, but we do plan
-                    // to implement it eventually.
-                    if false {
-                        result |= 0x40;
-                    }
-                    // Vertical Blank flag.
-                    if self.vblank_status_flag {
-                        result |= 0x80;
-                        self.vblank_status_flag = false;
-                    }
-                    result
-                }
-                _ => self.ppu[(address & 0b111) as usize],
-            }
+            self.ppu.perform_register_read(&self.cartridge, address)
         } else if address < 0x4018 {
             match address {
                 0x4016 => self.controllers[0].perform_read(),
@@ -163,10 +143,8 @@ impl Memory for Devices {
         if address < 0x2000 {
             self.ram[(address & 0x7FF) as usize] = data;
         } else if address < 0x4000 {
-            match address {
-                0x2002 => warn!("ROM wrote {data:02X} to PPUSTATUS register"),
-                _ => self.ppu[(address & 0b111) as usize] = data,
-            }
+            self.ppu
+                .perform_register_write(&mut self.cartridge, address, data)
         } else if address < 0x4018 {
             match address {
                 0x4016 => {
@@ -186,7 +164,7 @@ impl Memory for Devices {
 }
 
 impl Devices {
-    pub fn get_ppu(&self) -> &[u8; 8] {
+    pub fn get_ppu(&self) -> &PPU {
         return &self.ppu;
     }
 }
@@ -197,14 +175,13 @@ impl System {
             cpu: Cpu::new(),
             devices: Devices {
                 ram: [0; 2048],
-                ppu: [0; 8],
+                ppu: PPU::new(),
                 apu: [0; 24],
                 cartridge,
                 // Any array of things that implement Default also implements
                 // Default, so we can Default our Default to Default the
                 // defaults. Nicer than [Controller::new() * n]
                 controllers: Default::default(),
-                vblank_status_flag: true,
             },
         };
         result.reset();
@@ -218,11 +195,11 @@ impl System {
         const CPU_STEPS_PER_VBLANK: usize = 2273;
         let mut result = [0xDEECAF; NES_PIXEL_COUNT];
         // Pretend to be in V-blank.
-        self.devices.vblank_status_flag = true; // vblank flag ON
+        self.devices.ppu.vblank_status_flag = true; // vblank flag ON
         for _ in 0..CPU_STEPS_PER_VBLANK {
             self.cpu.step(&mut self.devices);
         }
-        self.devices.vblank_status_flag = false; // vblank flag OFF
+        self.devices.ppu.vblank_status_flag = false; // vblank flag OFF
         for (y, scanline) in result.chunks_mut(NES_WIDTH).enumerate() {
             // TODO: render a scanline
             for (x, pixel) in scanline.iter_mut().enumerate() {

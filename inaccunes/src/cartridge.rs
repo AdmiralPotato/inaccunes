@@ -72,4 +72,17 @@ impl Cartridge {
             chr_data,
         };
     }
+
+    pub fn perform_chr_read(&self, address: u16) -> u8 {
+        self.chr_data[(address as usize) % self.chr_data.len()]
+    }
+
+    pub(crate) fn perform_chr_write(&mut self, address: u16, data: u8) {
+        if false {
+            let length = self.chr_data.len();
+            self.chr_data[(address as usize) % length] = data;
+        } else {
+            warn!("We have CHR ROM, but the game wrote {address:02X} to {data:04X}!");
+        }
+    }
 }
