@@ -13,11 +13,11 @@ impl RAMputer {
 }
 
 impl Memory for RAMputer {
-    fn read_byte(&mut self, address: u16) -> u8 {
+    fn read_byte(&mut self, _cpu: &mut Cpu, address: u16) -> u8 {
         log::trace!("Read: {address:04X} --> {:02X}", self.ram[address as usize]);
         return self.ram[address as usize];
     }
-    fn write_byte(&mut self, address: u16, data: u8) {
+    fn write_byte(&mut self, _cpu: &mut Cpu, address: u16, data: u8) {
         log::trace!("Write: {address:04X} <-- {data:02X}");
         self.ram[address as usize] = data;
     }

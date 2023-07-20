@@ -122,7 +122,7 @@ pub struct Devices {
 //    x xxxx xxxx xAAA
 
 impl Memory for Devices {
-    fn read_byte(&mut self, address: u16) -> u8 {
+    fn read_byte(&mut self, _cpu: &mut Cpu, address: u16) -> u8 {
         if address < 0x2000 {
             self.ram[(address & 0x7FF) as usize]
         } else if address < 0x4000 {
@@ -139,12 +139,12 @@ impl Memory for Devices {
             self.cartridge.prg_data[address]
         }
     }
-    fn write_byte(&mut self, address: u16, data: u8) {
+    fn write_byte(&mut self, cpu: &mut Cpu, address: u16, data: u8) {
         if address < 0x2000 {
             self.ram[(address & 0x7FF) as usize] = data;
         } else if address < 0x4000 {
             self.ppu
-                .perform_register_write(&mut self.cartridge, address, data)
+                .perform_register_write(cpu, &mut self.cartridge, address, data)
         } else if address < 0x4018 {
             match address {
                 0x4016 => {
@@ -195,11 +195,11 @@ impl System {
         const CPU_STEPS_PER_VBLANK: usize = 2273;
         let mut result = [0xDEECAF; NES_PIXEL_COUNT];
         // Pretend to be in V-blank.
-        self.devices.ppu.vblank_status_flag = true; // vblank flag ON
+        self.devices.ppu.vblank_start(&mut self.cpu); // vblank flag ON
         for _ in 0..CPU_STEPS_PER_VBLANK {
             self.cpu.step(&mut self.devices);
         }
-        self.devices.ppu.vblank_status_flag = false; // vblank flag OFF
+        self.devices.ppu.vblank_stop(&mut self.cpu); // vblank flag OFF
         for (y, scanline) in result.chunks_mut(NES_WIDTH).enumerate() {
             // TODO: render a scanline
             for (x, pixel) in scanline.iter_mut().enumerate() {

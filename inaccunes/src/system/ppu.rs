@@ -1,3 +1,4 @@
+use super::*;
 use log::*;
 
 use crate::cartridge::{Cartridge, MirroringType};
@@ -30,7 +31,8 @@ pub struct PPU {
     pub cram: [u8; 32],
     pub oam: [u8; 256],
     pub nametables: [u8; 4096],
-    pub vblank_status_flag: bool,
+    vblank_status_flag: bool,
+    vblank_in_progress: bool,
     pub is_ppu_address_high: bool,
     pub next_scroll_is_x: bool,
 }
@@ -46,6 +48,7 @@ impl PPU {
             register_ppudata_address: 0,
             oam: [0; 256],
             vblank_status_flag: false,
+            vblank_in_progress: false,
             is_ppu_address_high: true,
             next_scroll_is_x: true,
             nametables: [0; 4096],
@@ -131,10 +134,19 @@ impl PPU {
             _ => unreachable!(),
         }
     }
-    pub fn perform_register_write(&mut self, cartridge: &mut Cartridge, address: u16, data: u8) {
+    pub fn perform_register_write(
+        &mut self,
+        cpu: &mut Cpu,
+        cartridge: &mut Cartridge,
+        address: u16,
+        data: u8,
+    ) {
         let address = address & 0b111;
         match address {
-            0 => self.register_control = data,
+            0 => {
+                self.register_control = data;
+                cpu.set_nmi_signal(self.is_nmi_supposed_to_be_active());
+            }
             1 => self.register_mask = data,
             2 => warn!("ROM wrote {data:02X} to PPUSTATUS register"),
             3 => self.register_oam_address = data,
@@ -168,5 +180,18 @@ impl PPU {
             }
             _ => unreachable!(),
         }
+    }
+    pub fn vblank_start(&mut self, cpu: &mut Cpu) {
+        self.vblank_status_flag = true;
+        self.vblank_in_progress = true;
+        cpu.set_nmi_signal(self.is_nmi_supposed_to_be_active());
+    }
+    pub fn vblank_stop(&mut self, cpu: &mut Cpu) {
+        self.vblank_status_flag = false;
+        self.vblank_in_progress = false;
+        cpu.set_nmi_signal(self.is_nmi_supposed_to_be_active());
+    }
+    fn is_nmi_supposed_to_be_active(&self) -> bool {
+        self.register_control & 0x80 != 0 && self.vblank_status_flag
     }
 }

@@ -9,7 +9,9 @@ mod addressing_modes;
 use addressing_modes::*;
 
 const STACK_BASE: u16 = 0x0100;
+const NMI_VECTOR: u16 = 0xFFFA;
 const RESET_VECTOR: u16 = 0xFFFC;
+const IRQ_VECTOR: u16 = 0xFFFE;
 const BYTE_SIGN_BIT: u8 = 0x80;
 const BYTE_CARRIED_BIT: u16 = 0b1_0000_0000;
 
@@ -26,6 +28,10 @@ pub struct Cpu {
     p: u8,
     /// The program counter.
     pc: u16,
+    /// Whether the NMI bus signal is low (and therefore active, because it is
+    /// an "active low" signal)
+    nmi_signal: bool,
+    nmi_signal_last_step: bool,
 }
 impl Debug for Cpu {
     fn fmt(&self, fmt: &mut Formatter<'_>) -> FmtResult {
@@ -133,17 +139,19 @@ impl Cpu {
             s: 255,
             p: 255,
             pc: 255,
+            nmi_signal: false,
+            nmi_signal_last_step: false,
         };
     }
 
     pub fn reset<M: Memory>(&mut self, memory: &mut M) {
-        let a = memory.read_byte(RESET_VECTOR);
-        let b = memory.read_byte(RESET_VECTOR + 1);
+        let a = memory.read_byte(self, RESET_VECTOR);
+        let b = memory.read_byte(self, RESET_VECTOR + 1);
         self.pc = u16::from_le_bytes([a, b]);
     }
 
     fn read_pc_and_post_inc<M: Memory>(&mut self, memory: &mut M) -> u8 {
-        let value = memory.read_byte(self.pc);
+        let value = memory.read_byte(self, self.pc);
         self.pc += 1;
         return value;
     }
@@ -153,14 +161,14 @@ impl Cpu {
         // 01xx = stack (STACK_BASE)
         // xxxx = some other address
         let destination = (self.s) as u16 + STACK_BASE;
-        memory.write_byte(destination, byte);
+        memory.write_byte(self, destination, byte);
         self.s = self.s.wrapping_sub(1);
     }
 
     fn pop_byte<M: Memory>(&mut self, memory: &mut M) -> u8 {
         self.s = self.s.wrapping_add(1);
         let destination = (self.s) as u16 + STACK_BASE;
-        let result = memory.read_byte(destination);
+        let result = memory.read_byte(self, destination);
         return result;
     }
 
@@ -335,14 +343,41 @@ impl Cpu {
     }
 
     pub fn set_nmi_signal(&mut self, active: bool) {
-        todo!("NMI signal");
+        self.nmi_signal = active;
     }
 
     pub fn set_irq_signal(&mut self, active: bool) {
         todo!("IRQ signal");
     }
 
+    fn do_interrupt<M: Memory>(
+        &mut self,
+        memory: &mut M,
+        vector_address: u16,
+        is_actually_a_brk: bool,
+    ) {
+        let pc_bytes = self.pc.to_be_bytes();
+        // Save the PC for later restoration
+        self.push_byte(memory, pc_bytes[0]);
+        self.push_byte(memory, pc_bytes[1]);
+        // Save the status bit for later restoration (but with the B bit clear)
+        self.push_byte(memory, assign_bit(self.p, STATUS_B, is_actually_a_brk));
+        // Find out what address to jump to
+        self.pc = u16::from_le_bytes([
+            memory.read_byte(self, vector_address),
+            memory.read_byte(self, vector_address + 1),
+        ]);
+        // Disable interrupts
+        self.p = set_bit(self.p, STATUS_I);
+    }
+
     pub fn step<M: Memory>(&mut self, memory: &mut M) {
+        if !self.nmi_signal_last_step && self.nmi_signal {
+            self.nmi_signal_last_step = self.nmi_signal;
+            self.do_interrupt(memory, NMI_VECTOR, false);
+            return;
+        }
+        self.nmi_signal_last_step = self.nmi_signal;
         //eprintln!("PC is {:X}", self.pc);
         let opcode = self.read_pc_and_post_inc(memory);
         //eprintln!("Opcode is {:02X}", opcode);
@@ -355,7 +390,8 @@ impl Cpu {
                     We have probably entered The Weeds!",
                     self.pc.wrapping_sub(1)
                 );
-                todo!("interrupt handling");
+                self.pc = self.pc.wrapping_add(1);
+                self.do_interrupt(memory, IRQ_VECTOR, true);
             }
             // ORA (zp,X)
             // OR with Accumulator (zero page X-indexed indirect)
@@ -472,7 +508,13 @@ impl Cpu {
             0x3E => self.rotate_left::<AbsoluteXIndexed, _>(memory),
             // RTI
             // ReTurn from Interrupt
-            //0x40 => todo!(),
+            0x40 => {
+                self.p = self.pop_byte(memory) | STATUS_1;
+                let pc_low = self.pop_byte(memory);
+                let pc_high = self.pop_byte(memory);
+                let destination = u16::from_le_bytes([pc_low, pc_high]);
+                self.pc = destination;
+            }
             // EOR (zp,X)
             // Exclusive OR accumulator (zero page X-indexed indirect)
             0x41 => self.xor_accumulator::<ZeroPageXIndexedIndirect, _>(memory),
@@ -566,8 +608,8 @@ impl Cpu {
             // JuMP (absolute indirect)
             0x6C => {
                 let address_of_address = Absolute::new(self, memory).get_address();
-                let destination_low = memory.read_byte(address_of_address);
-                let destination_high = memory.read_byte(address_of_address.wrapping_add(1));
+                let destination_low = memory.read_byte(self, address_of_address);
+                let destination_high = memory.read_byte(self, address_of_address.wrapping_add(1));
                 self.pc = u16::from_le_bytes([destination_low, destination_high]);
             }
             // ADC abs
