@@ -167,7 +167,10 @@ impl Memory for Devices {
 
 impl Devices {
     pub fn get_ppu(&self) -> &PPU {
-        return &self.ppu;
+        &self.ppu
+    }
+    pub fn get_ram(&self) -> &[u8; WORK_RAM_SIZE] {
+        &self.ram
     }
 }
 
