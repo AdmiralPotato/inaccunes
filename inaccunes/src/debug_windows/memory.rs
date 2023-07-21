@@ -108,7 +108,7 @@ impl DebugWindowThing for DebugMemoryWindow {
                     top_margin + y as i32 * (cell_height) + 2,
                     &format!("{:02X}", system.get_work_memory_byte(target_address)),
                 );
-                if target_address == 0x74A {
+                if target_address == 0x74A || target_address == 0xCE || target_address == 0x86 {
                     // HACK!
                     font.render_to_canvas(
                         canvas,

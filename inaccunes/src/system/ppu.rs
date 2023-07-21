@@ -113,7 +113,8 @@ impl PPU {
                 }
                 // Sprite 0 Hit flag. Not implemented YET, but we do plan
                 // to implement it eventually.
-                if false {
+                //TODO: really do it
+                if !self.vblank_in_progress {
                     result |= 0x40;
                 }
                 // Vertical Blank flag.
@@ -165,10 +166,12 @@ impl PPU {
             6 => {
                 if self.is_ppu_address_high {
                     // Write the high byte
+                    // log::trace!("PPUADDR high write: {data:02X}");
                     self.register_ppudata_address =
                         (self.register_ppudata_address & !0xFF00) | ((data as u16) << 8);
                 } else {
                     // Write the low byte
+                    // log::trace!("PPUADDR low write:  {data:02X}");
                     self.register_ppudata_address =
                         (self.register_ppudata_address & !0x00FF) | (data as u16);
                 }

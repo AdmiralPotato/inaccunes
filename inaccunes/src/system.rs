@@ -151,7 +151,9 @@ impl Memory for Devices {
                     self.controllers[0].set_latch_state(data & 1 != 0);
                     self.controllers[1].set_latch_state(data & 1 != 0);
                 }
-                0x4017 => warn!("What is this rom doing, writing to 0x4017???"),
+                0x4017 => {
+                    // warn!("What is this rom doing, writing to 0x4017???")
+                }
                 _ => self.apu[(address - 0x4000) as usize] = data,
             }
         } else {

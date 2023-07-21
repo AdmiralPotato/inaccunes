@@ -82,7 +82,7 @@ impl Cartridge {
             let length = self.chr_data.len();
             self.chr_data[(address as usize) % length] = data;
         } else {
-            warn!("We have CHR ROM, but the game wrote {address:02X} to {data:04X}!");
+            warn!("We have CHR ROM, but the game wrote {data:02X} to {address:04X}!");
         }
     }
 }
