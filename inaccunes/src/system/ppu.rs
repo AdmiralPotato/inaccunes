@@ -153,7 +153,7 @@ impl PPU {
             3 => self.register_oam_address = data,
             4 => {
                 self.oam[self.register_oam_address as usize] = data;
-                self.register_oam_address += 1;
+                self.register_oam_address = self.register_oam_address.wrapping_add(1);
             }
             5 => {
                 if self.next_scroll_is_x {

@@ -147,6 +147,15 @@ impl Memory for Devices {
                 .perform_register_write(cpu, &mut self.cartridge, address, data)
         } else if address < 0x4018 {
             match address {
+                0x4014 => {
+                    // OAM DMA!!!!
+                    let page_to_read = data;
+                    let start_address = u16::from_be_bytes([page_to_read, 0]);
+                    for src_address in start_address..=start_address + 255 {
+                        let oam_data = self.read_byte(cpu, src_address);
+                        self.write_byte(cpu, 0x2004, oam_data);
+                    }
+                }
                 0x4016 => {
                     self.controllers[0].set_latch_state(data & 1 != 0);
                     self.controllers[1].set_latch_state(data & 1 != 0);

@@ -49,7 +49,7 @@ fn main() {
         .allow_highdpi() // thanks apple you started the lie that caused the resolution war
         .build()
         .expect("Couldn't make an SDL window?!!");
-    let mut tv_canvas = tv_window.into_canvas().build().unwrap();
+    let mut tv_canvas = tv_window.into_canvas().present_vsync().build().unwrap();
     tv_canvas.set_draw_color(sdl2::pixels::Color::RGB(0, 255, 255));
     tv_canvas.clear();
     tv_canvas.present();
@@ -86,7 +86,7 @@ fn main() {
             .copy(&tv_texture, None, None)
             .expect("could not copy native texture to window texture");
         // HACK
-        for chunk in system.get_devices().get_ram()[0x200..0x300].chunks_exact(4) {
+        for chunk in system.get_devices().get_ppu().oam.chunks_exact(4) {
             let (y, tile, attributes, x) = (chunk[0], chunk[1], chunk[2], chunk[3]);
             monaco_for_tv.render_to_canvas(
                 &mut tv_canvas,
