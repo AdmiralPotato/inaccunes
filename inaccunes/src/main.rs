@@ -41,6 +41,11 @@ fn main() {
 
     let sdl = sdl2::init().expect("Unable to initialize SDL (like, at all)");
     let video = sdl.video().expect("Unable to initialize SDL video");
+    // Memory window
+    let mut debug_windows: Vec<Box<dyn DebugWindowThing>> = vec![
+        debug_windows::memory::DebugMemoryWindow::new(&video, monaco.clone()),
+        debug_windows::devices::DebugDevicesWindow::new(&video, monaco.clone()),
+    ];
     let mut event_pump = sdl.event_pump().expect("Couldn't get an event pump?!");
     // TV window
     let tv_window = video
@@ -63,11 +68,6 @@ fn main() {
         )
         .expect("Could not create a native size texture.");
     let monaco_for_tv = FontInstance::new(monaco.clone(), &tv_texture_creator);
-    // Memory window
-    let mut debug_windows: Vec<Box<dyn DebugWindowThing>> = vec![
-        debug_windows::memory::DebugMemoryWindow::new(&video, monaco.clone()),
-        debug_windows::devices::DebugDevicesWindow::new(&video, monaco.clone()),
-    ];
     'running: loop {
         ///////////////////////////////////////////////////////////////////////
         // Draw the TV
