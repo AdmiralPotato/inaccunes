@@ -53,17 +53,29 @@ impl DebugWindowThing for DebugDevicesWindow {
                 "PPUCTRL = ${data:02X}\t\tNMI {nmi}\t|\tPPU {master}\n\
                 \tSprite patterns ${spritepat}xxx\t|\tSprite Size: {sprites}\n\
                 \tBG patterns ${bgpat}xxx\t|\tVRAM addr+={vraminc}\t|\tnames $2{nametable:X}xx",
-                nmi = if (data & 0x80) == 0 { "off" } else { "ON" },
-                master = if (data & 0x40) == 0 {
-                    "master"
+                nmi = if ppu.is_nmi_on() { "ON" } else { "off" },
+                master = if ppu.is_master() { "master" } else { "slave" },
+                sprites = if ppu.is_sprite_size_8x16() {
+                    "8x16"
                 } else {
-                    "slave"
+                    "8x8"
                 },
-                sprites = if (data & 0x20) == 0 { "8x8" } else { "8x16" },
-                bgpat = if (data & 0x10) == 0 { "0" } else { "1" },
-                spritepat = if (data & 0x8) == 0 { "0" } else { "1" },
-                vraminc = if (data & 0x4) == 0 { "1(X)" } else { "32(Y)" },
-                nametable = (data & 3) << 2,
+                bgpat = if ppu.are_bg_tiles_in_upper_half() {
+                    "1"
+                } else {
+                    "0"
+                },
+                spritepat = if ppu.are_sprite_tiles_in_upper_half() {
+                    "1"
+                } else {
+                    "0"
+                },
+                vraminc = if ppu.is_vram_incrementing_by_y() {
+                    "32(Y)"
+                } else {
+                    "1(X)"
+                },
+                nametable = ppu.which_nametable_is_upper_left() << 2,
             ),
         );
         let y = y + 4;

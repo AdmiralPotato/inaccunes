@@ -86,14 +86,16 @@ fn main() {
             .copy(&tv_texture, None, None)
             .expect("could not copy native texture to window texture");
         // HACK
-        for chunk in system.get_devices().get_ppu().oam.chunks_exact(4) {
-            let (y, tile, attributes, x) = (chunk[0], chunk[1], chunk[2], chunk[3]);
-            monaco_for_tv.render_to_canvas(
-                &mut tv_canvas,
-                x as i32 * 2,
-                y as i32 * 2,
-                &format!("{tile:02X}\n{attributes:02X}"),
-            );
+        if false {
+            for chunk in system.get_devices().get_ppu().oam.chunks_exact(4) {
+                let (y, tile, attributes, x) = (chunk[0], chunk[1], chunk[2], chunk[3]);
+                monaco_for_tv.render_to_canvas(
+                    &mut tv_canvas,
+                    x as i32 * 2,
+                    y as i32 * 2,
+                    &format!("{tile:02X}\n{attributes:02X}"),
+                );
+            }
         }
         tv_canvas.present();
         ///////////////////////////////////////////////////////////////////////

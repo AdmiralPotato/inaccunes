@@ -195,6 +195,27 @@ impl PPU {
         cpu.set_nmi_signal(self.is_nmi_supposed_to_be_active());
     }
     fn is_nmi_supposed_to_be_active(&self) -> bool {
-        self.register_control & 0x80 != 0 && self.vblank_status_flag
+        self.is_nmi_on() && self.vblank_status_flag
+    }
+    pub fn is_nmi_on(&self) -> bool {
+        (self.register_control & 0x80) != 0
+    }
+    pub fn is_master(&self) -> bool {
+        (self.register_control & 0x40) == 0
+    }
+    pub fn is_sprite_size_8x16(&self) -> bool {
+        (self.register_control & 0x20) != 0
+    }
+    pub fn are_bg_tiles_in_upper_half(&self) -> bool {
+        (self.register_control & 0x10) != 0
+    }
+    pub fn are_sprite_tiles_in_upper_half(&self) -> bool {
+        (self.register_control & 0x8) != 0
+    }
+    pub fn is_vram_incrementing_by_y(&self) -> bool {
+        (self.register_control & 0x4) != 0
+    }
+    pub fn which_nametable_is_upper_left(&self) -> u8 {
+        self.register_control & 3
     }
 }
