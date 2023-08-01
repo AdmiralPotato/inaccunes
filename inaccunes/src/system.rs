@@ -242,6 +242,7 @@ impl Sprite {
     fn get_pixel_for_xy(
         &self,
         cartridge: &Cartridge,
+        sprites_are_8x16: bool,
         x: usize,
         y: usize,
     ) -> Option<(u8, usize, bool)> {
@@ -255,6 +256,21 @@ impl Sprite {
                 7 - x_within_sprite
             };
             let y_within_sprite = y - self.y;
+            let y_within_sprite = if self.flip_vertical {
+                if sprites_are_8x16 {
+                    15 - y_within_sprite
+                } else {
+                    7 - y_within_sprite
+                }
+            } else {
+                y_within_sprite
+            };
+            let y_within_sprite = if y_within_sprite >= 8 {
+                // (this can only happen with 8x16 sprites)
+                y_within_sprite + 8 // skip to the next tile number
+            } else {
+                y_within_sprite
+            };
             let low_byte = cartridge.chr_data[self.tile_address as usize + y_within_sprite];
             let high_byte = cartridge.chr_data[self.tile_address as usize + y_within_sprite + 8];
             let mask = 1 << x_within_sprite;
@@ -326,7 +342,9 @@ impl System {
                 let (sprite_color, sprite_palette, sprite_is_behind_background) =
                     sprites_on_scanline
                         .iter()
-                        .filter_map(|s| s.get_pixel_for_xy(&self.devices.cartridge, x, y))
+                        .filter_map(|s| {
+                            s.get_pixel_for_xy(&self.devices.cartridge, sprites_are_8x16, x, y)
+                        })
                         .next()
                         .unwrap_or((0, 0, false));
                 let background_is_blocking_sprite = bg_color != 0 && sprite_is_behind_background;
