@@ -55,7 +55,7 @@ impl PPU {
             cram: [0; 32],
         }
     }
-    fn perform_bus_read(&mut self, cartridge: &Cartridge, address: u16) -> u8 {
+    pub fn perform_bus_read(&mut self, cartridge: &Cartridge, address: u16) -> u8 {
         // only 14 bits of address exist on the bus
         let address = address & 0b11_1111_1111_1111;
         if address < 0x2000 {
@@ -67,7 +67,7 @@ impl PPU {
             self.nametables[(address & 0b1111_1111_1111) as usize]
         }
     }
-    fn perform_bus_write(&mut self, cartridge: &mut Cartridge, address: u16, data: u8) {
+    pub fn perform_bus_write(&mut self, cartridge: &mut Cartridge, address: u16, data: u8) {
         // only 14 bits of address exist on the bus
         let address = address & 0b11_1111_1111_1111;
         if address < 0x2000 {
@@ -217,5 +217,8 @@ impl PPU {
     }
     pub fn which_nametable_is_upper_left(&self) -> u8 {
         self.register_control & 3
+    }
+    pub fn flip_which_nametable_is_upper_left_by_y(&mut self) {
+        self.register_control ^= 2
     }
 }

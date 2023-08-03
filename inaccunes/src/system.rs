@@ -8,6 +8,7 @@ use ppu::*;
 
 const TILE_BYTES: usize = 16;
 const MAX_SPRITES_PER_SCANLINE: usize = 8;
+const BACKGROUND_X_TILE_COUNT: usize = 32;
 
 const BUTTON_A: u8 = /*     */ 0b0000_0001;
 const BUTTON_B: u8 = /*     */ 0b0000_0010;
@@ -251,9 +252,9 @@ impl Sprite {
             let sprite_is_behind_background = self.is_behind_background;
             let x_within_sprite = x - self.x;
             let x_within_sprite = if self.flip_horizontal {
-                x_within_sprite
-            } else {
                 7 - x_within_sprite
+            } else {
+                x_within_sprite
             };
             let y_within_sprite = y - self.y;
             let y_within_sprite = if self.flip_vertical {
@@ -271,12 +272,8 @@ impl Sprite {
             } else {
                 y_within_sprite
             };
-            let low_byte = cartridge.chr_data[self.tile_address as usize + y_within_sprite];
-            let high_byte = cartridge.chr_data[self.tile_address as usize + y_within_sprite + 8];
-            let mask = 1 << x_within_sprite;
-            let low_masked = (low_byte & mask) >> x_within_sprite;
-            let high_masked = (high_byte & mask) >> x_within_sprite << 1;
-            let sprite_color = low_masked | high_masked;
+            let sprite_color =
+                cartridge.get_tile(self.tile_address, x_within_sprite, y_within_sprite);
             if sprite_color == 0 {
                 // If the sprite is transparent, another sprite could still
                 // be here
@@ -311,16 +308,45 @@ impl System {
     pub fn reset(&mut self) {
         self.cpu.reset(&mut self.devices);
     }
+    fn get_pixel_for_background(
+        &mut self,
+        cur_nametable: usize,
+        tile_x: usize,
+        x_within_tile: usize,
+        tile_y: usize,
+        y_within_tile: usize,
+    ) -> (u8, usize) {
+        const NAMETABLE_ADDRESSES: [usize; 4] = [0x2000, 0x2400, 0x2800, 0x2C00];
+        let nametable_address = NAMETABLE_ADDRESSES[cur_nametable];
+        let address_of_tile_number =
+            nametable_address + (tile_y * BACKGROUND_X_TILE_COUNT) + tile_x;
+        let tile_number = self
+            .devices
+            .ppu
+            .perform_bus_read(&self.devices.cartridge, address_of_tile_number as u16);
+        let tile_base_address = if self.devices.ppu.are_bg_tiles_in_upper_half() {
+            0x1000
+        } else {
+            0x0000
+        };
+        let tile_address = tile_base_address + tile_number as u16 * TILE_BYTES as u16;
+        let color = self
+            .devices
+            .cartridge
+            .get_tile(tile_address, x_within_tile, y_within_tile);
+        (color, 0) // TODO: replace 0 with the palette number
+    }
     pub fn render(&mut self) -> [u32; NES_PIXEL_COUNT] {
         const CPU_STEPS_PER_SCANLINE: usize = 113;
         const CPU_STEPS_PER_VBLANK: usize = 2273;
-        let mut result = [0xBEECAF; NES_PIXEL_COUNT];
+        let mut result = [0x0; NES_PIXEL_COUNT];
         // Pretend to be in V-blank.
         self.devices.ppu.vblank_start(&mut self.cpu); // vblank flag ON
         for _ in 0..CPU_STEPS_PER_VBLANK {
             self.cpu.step(&mut self.devices);
         }
         self.devices.ppu.vblank_stop(&mut self.cpu); // vblank flag OFF
+        let mut cur_y_scroll = self.devices.ppu.register_scroll_y as usize;
         for (y, scanline) in result.chunks_mut(NES_WIDTH).enumerate() {
             let mut sprites_on_scanline = vec![];
             let sprites_are_8x16 = self.devices.ppu.is_sprite_size_8x16();
@@ -337,8 +363,20 @@ impl System {
                     }
                 }
             }
+            let mut cur_x_scroll = self.devices.ppu.register_scroll_x as usize;
+            let mut cur_nametable = self.devices.ppu.which_nametable_is_upper_left();
             for (x, pixel) in scanline.iter_mut().enumerate() {
-                let (bg_color, bg_palette) = (0, 0); // TODO
+                let tile_x = cur_x_scroll / 8;
+                let x_within_tile = cur_x_scroll % 8;
+                let tile_y = cur_y_scroll / 8;
+                let y_within_tile = cur_y_scroll % 8;
+                let (bg_color, bg_palette) = self.get_pixel_for_background(
+                    cur_nametable as usize,
+                    tile_x,
+                    x_within_tile,
+                    tile_y,
+                    y_within_tile,
+                );
                 let (sprite_color, sprite_palette, sprite_is_behind_background) =
                     sprites_on_scanline
                         .iter()
@@ -355,17 +393,36 @@ impl System {
                     (color, palette) = (bg_color, bg_palette);
                 }
                 *pixel = match color {
-                    0 => (x as u32) * 69 + (y as u32) * 420,
+                    0 => 0,
                     1 => 0xFF0000,
                     2 => 0x00CC00,
                     3 => 0x0033FF,
                     _ => unreachable!(),
                 };
+                // 00000000 XXXXXXXX
+                // 00110000 XXXXXXXX
+                // 22222222 XXXXXXXX
+                //
+                // YYYYYYYY ZZZZZZZZ
+                // YYYYYYYY ZZZZZZZZ
+                // YYYYYYYY ZZZZZZZZ
+                cur_x_scroll += 1;
+                if cur_x_scroll >= 256 {
+                    cur_x_scroll -= 256;
+                    cur_nametable ^= 1;
+                }
             }
             for _ in 0..CPU_STEPS_PER_SCANLINE {
                 self.cpu.step(&mut self.devices);
             }
+            cur_y_scroll += 1;
+            if cur_y_scroll >= 240 {
+                cur_y_scroll -= 240;
+                self.devices.ppu.flip_which_nametable_is_upper_left_by_y();
+            }
         }
+        // we have to do this again at the end of the frame
+        self.devices.ppu.flip_which_nametable_is_upper_left_by_y();
         return result;
     }
     pub fn show_cpu_state(&self) -> String {

@@ -85,4 +85,19 @@ impl Cartridge {
             warn!("We have CHR ROM, but the game wrote {data:02X} to {address:04X}!");
         }
     }
+    pub fn get_tile(
+        &self,
+        tile_address: u16,
+        x_within_sprite: usize,
+        y_within_sprite: usize,
+    ) -> u8 {
+        let x_within_sprite = 7 - x_within_sprite;
+        let low_byte = self.perform_chr_read(tile_address + y_within_sprite as u16);
+        let high_byte = self.perform_chr_read(tile_address + y_within_sprite as u16 + 8);
+        let mask = 1 << x_within_sprite;
+        let low_masked = (low_byte & mask) >> x_within_sprite;
+        let high_masked = (high_byte & mask) >> x_within_sprite << 1;
+        let sprite_color = low_masked | high_masked;
+        sprite_color
+    }
 }
