@@ -221,4 +221,16 @@ impl PPU {
     pub fn flip_which_nametable_is_upper_left_by_y(&mut self) {
         self.register_control ^= 2
     }
+    pub fn is_grayscale(&self) -> bool {
+        let data = self.register_mask;
+        if (data & 0b1) == 0 {
+            false
+        } else {
+            true
+        }
+    }
+    pub fn get_emphasis(&self) -> usize {
+        let data = self.register_mask;
+        (data >> 5) as usize
+    }
 }

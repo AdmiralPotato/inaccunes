@@ -19,6 +19,18 @@ const BUTTON_DOWN: u8 = /*  */ 0b0010_0000;
 const BUTTON_LEFT: u8 = /*  */ 0b0100_0000;
 const BUTTON_RIGHT: u8 = /* */ 0b1000_0000;
 
+fn get_palette_color(grayscale: bool, emphasis: usize, color_index: usize) -> u32 {
+    const PALETTE_2C03: &[u8; 1536] = include_bytes!("2c03.pal");
+    let color_index = if grayscale {
+        color_index & 0x30
+    } else {
+        color_index & 0x3F
+    };
+    let index_within_palette = ((emphasis << 6) | color_index) * 3;
+    let color_bytes = &PALETTE_2C03[index_within_palette..index_within_palette + 3];
+    u32::from_be_bytes([0, color_bytes[0], color_bytes[1], color_bytes[2]])
+}
+
 #[derive(Default)]
 pub struct Controller {
     pub button_a: bool,
@@ -108,7 +120,6 @@ pub struct System {
 pub struct Devices {
     ram: [u8; WORK_RAM_SIZE],
     /// Picture Processing Unit
-    /// TODO: PPU registers
     ppu: PPU,
     /// Audio Processing Unit
     /// TODO: APU and IO registers
@@ -334,7 +345,19 @@ impl System {
             .devices
             .cartridge
             .get_tile(tile_address, x_within_tile, y_within_tile);
-        (color, 0) // TODO: replace 0 with the palette number
+        const NUMBER_OF_METATILES_PER_ROW: usize = 8;
+        let metatile_x = tile_x / 2;
+        let metatile_y = tile_y / 2;
+        let index_within_attribute_table =
+            (metatile_x / 2) + (metatile_y / 2) * NUMBER_OF_METATILES_PER_ROW;
+        let index_within_attribute_byte = (metatile_x % 2) + (metatile_y % 2) * 2;
+        let attribute_table_address = nametable_address + 0x3C0;
+        let attribute_byte = self.devices.ppu.perform_bus_read(
+            &self.devices.cartridge,
+            attribute_table_address as u16 + index_within_attribute_table as u16,
+        );
+        let attribute = (attribute_byte >> (index_within_attribute_byte * 2)) & 0b11;
+        (color, attribute as usize)
     }
     pub fn render(&mut self) -> [u32; NES_PIXEL_COUNT] {
         const CPU_STEPS_PER_SCANLINE: usize = 113;
@@ -392,13 +415,16 @@ impl System {
                 } else {
                     (color, palette) = (bg_color, bg_palette);
                 }
-                *pixel = match color {
-                    0 => 0,
-                    1 => 0xFF0000,
-                    2 => 0x00CC00,
-                    3 => 0x0033FF,
-                    _ => unreachable!(),
+                let color_index = if color == 0 {
+                    self.devices.ppu.cram[0] // the "universal background color"
+                } else {
+                    self.devices.ppu.cram[palette * 4 + color as usize]
                 };
+                *pixel = get_palette_color(
+                    self.devices.ppu.is_grayscale(),
+                    self.devices.ppu.get_emphasis(),
+                    color_index as usize,
+                );
                 // 00000000 XXXXXXXX
                 // 00110000 XXXXXXXX
                 // 22222222 XXXXXXXX
