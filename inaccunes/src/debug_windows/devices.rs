@@ -125,9 +125,9 @@ impl DebugWindowThing for DebugDevicesWindow {
             LEFT_MARGIN,
             TOP_MARGIN + y * font.get_glyph_height() as i32,
             &format!(
-                "OAM ADDRESS = ${oam:02X}\t\tPPU ADDRESS = ${ppudata:04X}",
+                "OAM ADDRESS = ${oam:02X}", //\t\tPPU ADDRESS = ${ppudata:04X}",
                 oam = ppu.register_oam_address,
-                ppudata = ppu.register_ppudata_address,
+                //ppudata = ppu.register_ppudata_address,
             ),
         );
         let y = y + 2;

@@ -359,22 +359,71 @@ impl System {
         let attribute = (attribute_byte >> (index_within_attribute_byte * 2)) & 0b11;
         (color, attribute as usize)
     }
+    fn get_cursed_pixel_for_background(&mut self) -> (u8, usize) {
+        let ppu = &mut self.devices.ppu;
+        let tile_address_to_read = (ppu.current_render_address & 0x0FFF) | 0x2000;
+        let attribute_address_to_read = (ppu.current_render_address & 0x0C00)
+            | ((ppu.current_render_address >> 4) & 0x38)
+            | ((ppu.current_render_address >> 2) & 0x07)
+            | 0x23C0;
+        let tile_number = ppu.perform_bus_read(&self.devices.cartridge, tile_address_to_read);
+        let tile_base_address = if ppu.are_bg_tiles_in_upper_half() {
+            0x1000
+        } else {
+            0x0000
+        };
+        let tile_address = tile_base_address + tile_number as u16 * TILE_BYTES as u16;
+        let color = self.devices.cartridge.get_tile(
+            tile_address,
+            ppu.fine_scroll_x as usize,
+            (ppu.current_render_address >> 12) as usize,
+        );
+        let attribute_byte =
+            ppu.perform_bus_read(&self.devices.cartridge, attribute_address_to_read as u16);
+        let index_within_attribute_byte =
+            ((ppu.current_render_address >> 1) & 1) | ((ppu.current_render_address >> 5) & 2);
+        let attribute = (attribute_byte >> (index_within_attribute_byte * 2)) & 0b11;
+        // scroll!
+        ppu.fine_scroll_x += 1;
+        if ppu.fine_scroll_x >= 8 {
+            ppu.fine_scroll_x = 0;
+            // we reached the end of the tile, so go to the next tile
+            if ppu.current_render_address & 0b11111 == 0b11111 {
+                // if we were at the right edge of the nametable, go to the next
+                // nametable
+                ppu.current_render_address &= 0b1111111_11100000;
+                ppu.current_render_address ^= 0b0000100_00000000;
+            } else {
+                // we were not at the right edge of the nametable, go to the
+                // next tile
+                ppu.current_render_address += 1;
+            }
+        }
+        (color, attribute as usize)
+    }
     pub fn render(&mut self) -> [u32; NES_PIXEL_COUNT] {
         const CPU_STEPS_PER_SCANLINE: usize = 113;
         const CPU_STEPS_PER_VBLANK: usize = 2273;
         let mut result = [0x0; NES_PIXEL_COUNT];
         // Pretend to be in V-blank.
-        self.devices.ppu.vblank_start(&mut self.cpu); // vblank flag ON
+        // vblank flag ON
+        self.devices.ppu.vblank_start(&mut self.cpu);
         for _ in 0..CPU_STEPS_PER_VBLANK {
             self.cpu.step(&mut self.devices);
         }
-        self.devices.ppu.vblank_stop(&mut self.cpu); // vblank flag OFF
-        let mut cur_y_scroll = self.devices.ppu.register_scroll_y as usize;
+        // vblank flag OFF
+        self.devices.ppu.vblank_stop(&mut self.cpu);
+        // BEGIN CURSE!
+        self.devices.ppu.current_render_address &= 0b0000100_00011111;
+        self.devices.ppu.current_render_address |=
+            self.devices.ppu.canon_render_address & 0b1111011_11100000;
+        // END CURSE!
+        //let mut cur_y_scroll = self.devices.ppu.register_scroll_y as usize;
         for (y, scanline) in result.chunks_mut(NES_WIDTH).enumerate() {
             let mut sprites_on_scanline = vec![];
             let sprites_are_8x16 = self.devices.ppu.is_sprite_size_8x16();
             let sprite_tiles_are_in_upper_half = self.devices.ppu.are_sprite_tiles_in_upper_half();
-            for sprite_data in self.devices.ppu.oam.chunks_exact(4) {
+            for (sprite_index, sprite_data) in self.devices.ppu.oam.chunks_exact(4).enumerate() {
                 let sprite = Sprite::from_oam_data(
                     sprites_are_8x16,
                     sprite_tiles_are_in_upper_half,
@@ -382,13 +431,14 @@ impl System {
                 );
                 if sprite.is_visible_on_scanline(sprites_are_8x16, y) {
                     if sprites_on_scanline.len() < MAX_SPRITES_PER_SCANLINE {
-                        sprites_on_scanline.push(sprite);
+                        sprites_on_scanline.push((sprite_index, sprite));
                     }
                 }
             }
-            let mut cur_x_scroll = self.devices.ppu.register_scroll_x as usize;
-            let mut cur_nametable = self.devices.ppu.which_nametable_is_upper_left();
+            //let mut cur_x_scroll = self.devices.ppu.register_scroll_x as usize;
+            //let mut cur_nametable = self.devices.ppu.which_nametable_is_upper_left();
             for (x, pixel) in scanline.iter_mut().enumerate() {
+                /*
                 let tile_x = cur_x_scroll / 8;
                 let x_within_tile = cur_x_scroll % 8;
                 let tile_y = cur_y_scroll / 8;
@@ -400,14 +450,18 @@ impl System {
                     tile_y,
                     y_within_tile,
                 );
-                let (sprite_color, sprite_palette, sprite_is_behind_background) =
+                */
+                let (bg_color, bg_palette) = self.get_cursed_pixel_for_background();
+                let (sprite_index, (sprite_color, sprite_palette, sprite_is_behind_background)) =
                     sprites_on_scanline
                         .iter()
-                        .filter_map(|s| {
-                            s.get_pixel_for_xy(&self.devices.cartridge, sprites_are_8x16, x, y)
+                        .filter_map(|(index, sprite)| {
+                            sprite
+                                .get_pixel_for_xy(&self.devices.cartridge, sprites_are_8x16, x, y)
+                                .map(|x| (*index, x))
                         })
                         .next()
-                        .unwrap_or((0, 0, false));
+                        .unwrap_or((69, (0, 0, false)));
                 let background_is_blocking_sprite = bg_color != 0 && sprite_is_behind_background;
                 let (color, palette);
                 if sprite_color != 0 && !background_is_blocking_sprite {
@@ -420,6 +474,9 @@ impl System {
                 } else {
                     self.devices.ppu.cram[palette * 4 + color as usize]
                 };
+                if sprite_index == 0 && bg_color != 0 && sprite_color != 0 {
+                    self.devices.ppu.turn_on_sprite_0_hit();
+                }
                 *pixel = get_palette_color(
                     self.devices.ppu.is_grayscale(),
                     self.devices.ppu.get_emphasis(),
@@ -432,23 +489,52 @@ impl System {
                 // YYYYYYYY ZZZZZZZZ
                 // YYYYYYYY ZZZZZZZZ
                 // YYYYYYYY ZZZZZZZZ
+                /*
                 cur_x_scroll += 1;
                 if cur_x_scroll >= 256 {
                     cur_x_scroll -= 256;
                     cur_nametable ^= 1;
                 }
+                */
             }
             for _ in 0..CPU_STEPS_PER_SCANLINE {
                 self.cpu.step(&mut self.devices);
             }
+            /*
             cur_y_scroll += 1;
             if cur_y_scroll >= 240 {
                 cur_y_scroll -= 240;
                 self.devices.ppu.flip_which_nametable_is_upper_left_by_y();
             }
+            */
+            // BEGIN CURSE!
+            let ppu = &mut self.devices.ppu;
+            // the part of the curse that is about the Y scroll
+            ppu.current_render_address += 0b0010000_00000000;
+            if ppu.current_render_address >= 0x8000 {
+                ppu.current_render_address &= 0b1111111_1111111;
+                // If the coarse Y scroll is exactly equal to 29...
+                if ppu.current_render_address & (0b11111 << 5) == (29 << 5) {
+                    // set it to 0
+                    ppu.current_render_address &= !(0b11111 << 5);
+                    // and flip to a different nametable
+                    ppu.current_render_address ^= 0b10 << 10;
+                }
+                // Otherwise...
+                else {
+                    // increment the coarse Y scroll by 1
+                    ppu.current_render_address += 0b00001 << 5;
+                    // BUG: the thing that happens if you set scroll Y to an
+                    // illegal value isn't emulated, DON'T DO THAT ANYWAY
+                }
+            }
+            // the part of the curse that is about the X scroll
+            self.devices.ppu.current_render_address &= 0b1111011_11100000;
+            self.devices.ppu.current_render_address |=
+                self.devices.ppu.canon_render_address & 0b0000100_00011111;
+            // END CURSE!
         }
         // we have to do this again at the end of the frame
-        self.devices.ppu.flip_which_nametable_is_upper_left_by_y();
         return result;
     }
     pub fn show_cpu_state(&self) -> String {
